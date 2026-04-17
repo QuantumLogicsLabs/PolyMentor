@@ -1,0 +1,17 @@
+supported_languages:
+  python:
+    extension: ".py"
+    tree_sitter_grammar: "tree-sitter-python"
+    tokenizer: "microsoft/codebert-base"
+  javascript:
+    extension: ".js"
+    tree_sitter_grammar: "tree-sitter-javascript"
+    tokenizer: "microsoft/codebert-base"
+  java:
+    extension: ".java"
+    tree_sitter_grammar: "tree-sitter-java"
+    tokenizer: "microsoft/codebert-base"
+  cpp:
+    extension: ".cpp"
+    tree_sitter_grammar: "tree-sitter-cpp"
+    tokenizer: "microsoft/codebert-base"

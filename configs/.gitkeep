@@ -1,4 +1,0 @@
-├── configs/
-│   ├── model_config.yaml          # Model hyperparameters
-│   ├── training_config.yaml       # Training schedule, batch size, LR
-│   └── language_config.yaml       # Per-language tokenizer settings

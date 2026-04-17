@@ -1,0 +1,15 @@
+training:
+  batch_size: 16
+  gradient_accumulation_steps: 2
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  epochs: 10
+  warmup_ratio: 0.1
+  fp16: true
+  seed: 42
+  output_dir: "models_saved/"
+  logging_steps: 50
+  eval_steps: 200
+  save_steps: 500
+  load_best_model_at_end: true
+  metric_for_best_model: "f1_micro"

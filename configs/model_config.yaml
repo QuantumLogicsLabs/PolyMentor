@@ -1,0 +1,11 @@
+model:
+  backbone: "microsoft/codebert-base"
+  num_labels: 9
+  max_seq_length: 512
+  dropout: 0.1
+  hidden_size: 768
+
+explanation_model:
+  backbone: "Salesforce/codet5-base"
+  max_input_length: 512
+  max_output_length: 256
