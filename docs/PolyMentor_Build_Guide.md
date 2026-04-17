@@ -109,7 +109,7 @@ Open `configs/model_config.local.yaml` and adjust:
 ```yaml
 model:
   backbone: "microsoft/codebert-base"
-  num_labels: 12          # Number of error types in your taxonomy
+  num_labels: 12 # Number of error types in your taxonomy
   max_seq_length: 512
   dropout: 0.1
 
@@ -132,12 +132,12 @@ PolyMentor is trained on a combination of public and custom datasets.
 
 ### 4.1 — Download Public Datasets
 
-| Dataset | Purpose | Where to Get It |
-|---|---|---|
-| CodeNet (IBM) | 14M multi-language code samples | [github.com/IBM/Project_CodeNet](https://github.com/IBM/Project_CodeNet) |
-| Stack Overflow Dump | Error Q&A for explanation training | [archive.org/details/stackexchange](https://archive.org/details/stackexchange) |
-| ManyBugs / IntroClass | Labeled real-world bug datasets | [repairbenchmarks.cs.umass.edu](https://repairbenchmarks.cs.umass.edu) |
-| LeetCode / HackerRank | Buggy solution pairs for hint training | Custom scrape or existing dumps |
+| Dataset               | Purpose                                | Where to Get It                                                                |
+| --------------------- | -------------------------------------- | ------------------------------------------------------------------------------ |
+| CodeNet (IBM)         | 14M multi-language code samples        | [github.com/IBM/Project_CodeNet](https://github.com/IBM/Project_CodeNet)       |
+| Stack Overflow Dump   | Error Q&A for explanation training     | [archive.org/details/stackexchange](https://archive.org/details/stackexchange) |
+| ManyBugs / IntroClass | Labeled real-world bug datasets        | [repairbenchmarks.cs.umass.edu](https://repairbenchmarks.cs.umass.edu)         |
+| LeetCode / HackerRank | Buggy solution pairs for hint training | Custom scrape or existing dumps                                                |
 
 Place all raw data under:
 
@@ -496,6 +496,7 @@ bash scripts/run_tutor.sh
 ```
 
 The tutor session:
+
 1. Accepts code input from the user
 2. Detects all errors
 3. Picks the most important error to teach first
@@ -602,23 +603,23 @@ docker push <account>.dkr.ecr.us-east-1.amazonaws.com/polymentor:latest
 
 ## ✅ Build Checklist
 
-| Step | Task | Status |
-|---|---|---|
-| 1 | Environment setup (Python 3.10+, CUDA, Tree-sitter) | ☐ |
-| 2 | Clone repo and install dependencies | ☐ |
-| 3 | Configure YAML files | ☐ |
-| 4 | Download and organize datasets | ☐ |
-| 5 | Build data pipeline (collect, clean, tokenize, split) | ☐ |
-| 6 | Implement feature extraction (AST + embeddings) | ☐ |
-| 7 | Build error detection model (CodeBERT multi-label classifier) | ☐ |
-| 8 | Build reasoning engine (concept mapping, scoring, hints) | ☐ |
-| 9 | Fine-tune explanation and hint generation models | ☐ |
-| 10 | Train all models | ☐ |
-| 11 | Evaluate and analyze model performance | ☐ |
-| 12 | Build and test inference pipeline | ☐ |
-| 13 | Run interactive tutor mode | ☐ |
-| 14 | Pass full test suite | ☐ |
-| 15 | Deploy via FastAPI + Docker (+ AWS) | ☐ |
+| Step | Task                                                          | Status |
+| ---- | ------------------------------------------------------------- | ------ |
+| 1    | Environment setup (Python 3.10+, CUDA, Tree-sitter)           | DONE   |
+| 2    | Clone repo and install dependencies                           | DONE   |
+| 3    | Configure YAML files                                          | ☐      |
+| 4    | Download and organize datasets                                | ☐      |
+| 5    | Build data pipeline (collect, clean, tokenize, split)         | ☐      |
+| 6    | Implement feature extraction (AST + embeddings)               | ☐      |
+| 7    | Build error detection model (CodeBERT multi-label classifier) | ☐      |
+| 8    | Build reasoning engine (concept mapping, scoring, hints)      | ☐      |
+| 9    | Fine-tune explanation and hint generation models              | ☐      |
+| 10   | Train all models                                              | ☐      |
+| 11   | Evaluate and analyze model performance                        | ☐      |
+| 12   | Build and test inference pipeline                             | ☐      |
+| 13   | Run interactive tutor mode                                    | ☐      |
+| 14   | Pass full test suite                                          | ☐      |
+| 15   | Deploy via FastAPI + Docker (+ AWS)                           | ☐      |
 
 ---
 
