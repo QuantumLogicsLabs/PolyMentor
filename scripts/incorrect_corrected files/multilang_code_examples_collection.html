@@ -1,0 +1,398 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-mono); }
+  .container { padding: 1.5rem 0; }
+  .header { margin-bottom: 1.5rem; }
+  .header h2 { font-size: 18px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+  .header p { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; font-family: var(--font-sans); }
+  
+  .filters { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .filter-btn { 
+    padding: 5px 14px; font-size: 12px; font-weight: 500; border-radius: 20px; 
+    border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary);
+    color: var(--color-text-secondary); cursor: pointer; font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { background: var(--color-background-secondary); }
+  .filter-btn.active { background: var(--color-background-primary); color: var(--color-text-primary); border-color: var(--color-border-primary); font-weight: 500; }
+  .filter-btn.syntax.active { background: #FCEBEB; color: #A32D2D; border-color: #F09595; }
+  .filter-btn.logic.active { background: #FAEEDA; color: #854F0B; border-color: #EF9F27; }
+  .filter-btn.correct.active { background: #EAF3DE; color: #3B6D11; border-color: #97C459; }
+
+  .lang-filters { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .lang-btn {
+    padding: 4px 10px; font-size: 11px; border-radius: 6px;
+    border: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary);
+    color: var(--color-text-secondary); cursor: pointer; font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .lang-btn.active { background: #EEEDFE; color: #3C3489; border-color: #AFA9EC; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .stat-card { 
+    background: var(--color-background-secondary); border-radius: var(--border-radius-md);
+    padding: 12px 14px; text-align: center;
+  }
+  .stat-num { font-size: 22px; font-weight: 500; font-family: var(--font-sans); }
+  .stat-label { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; font-family: var(--font-sans); }
+  .stat-card.syntax .stat-num { color: #A32D2D; }
+  .stat-card.logic .stat-num { color: #854F0B; }
+  .stat-card.correct .stat-num { color: #3B6D11; }
+
+  .examples-grid { display: flex; flex-direction: column; gap: 12px; }
+  .example-card {
+    background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg); overflow: hidden; transition: all 0.15s;
+  }
+  .example-card:hover { border-color: var(--color-border-secondary); }
+  .card-header {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    cursor: pointer; user-select: none;
+  }
+  .type-badge {
+    font-size: 10px; font-weight: 500; padding: 3px 8px; border-radius: 10px;
+    font-family: var(--font-sans); white-space: nowrap;
+  }
+  .syntax-badge { background: #FCEBEB; color: #A32D2D; }
+  .logic-badge { background: #FAEEDA; color: #854F0B; }
+  .correct-badge { background: #EAF3DE; color: #3B6D11; }
+  .lang-badge {
+    font-size: 10px; font-weight: 500; padding: 3px 8px; border-radius: 6px;
+    font-family: var(--font-sans); background: #EEEDFE; color: #3C3489;
+  }
+  .card-title { flex: 1; font-size: 13px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+  .chevron { font-size: 12px; color: var(--color-text-tertiary); transition: transform 0.2s; }
+  .example-card.open .chevron { transform: rotate(180deg); }
+  
+  .card-body { display: none; border-top: 0.5px solid var(--color-border-tertiary); }
+  .example-card.open .card-body { display: block; }
+  
+  .code-section { padding: 14px; }
+  .code-label { font-size: 10px; font-weight: 500; color: var(--color-text-secondary); font-family: var(--font-sans); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .code-block {
+    background: var(--color-background-secondary); border-radius: var(--border-radius-md);
+    padding: 12px; font-size: 12px; line-height: 1.6; overflow-x: auto;
+    font-family: var(--font-mono); color: var(--color-text-primary); white-space: pre;
+  }
+  .code-block.error { background: #FCEBEB; }
+  .code-block.warning { background: #FAEEDA; }
+  .code-block.good { background: #EAF3DE; }
+
+  .explanation { padding: 0 14px 14px; }
+  .explanation-box {
+    border-radius: var(--border-radius-md); padding: 10px 12px;
+    font-size: 12px; line-height: 1.6; font-family: var(--font-sans);
+  }
+  .explanation-box.syntax { background: #FCEBEB; color: #791F1F; border-left: 3px solid #E24B4A; }
+  .explanation-box.logic { background: #FAEEDA; color: #633806; border-left: 3px solid #EF9F27; }
+  .explanation-box.correct { background: #EAF3DE; color: #27500A; border-left: 3px solid #639922; }
+
+  .no-results { text-align: center; padding: 2rem; color: var(--color-text-secondary); font-family: var(--font-sans); font-size: 14px; }
+</style>
+
+<div class="container">
+  <div class="header">
+    <h2>Multi-Language Code Examples</h2>
+    <p>15 examples — 4 languages: Python, JavaScript, C++, Java</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card syntax"><div class="stat-num" id="s-count">5</div><div class="stat-label">Syntax Errors</div></div>
+    <div class="stat-card logic"><div class="stat-num" id="l-count">5</div><div class="stat-label">Logical Errors</div></div>
+    <div class="stat-card correct"><div class="stat-num" id="c-count">5</div><div class="stat-label">Correct Code</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" onclick="setType('all', this)">All (15)</button>
+    <button class="filter-btn syntax" onclick="setType('syntax', this)">Syntax Errors (5)</button>
+    <button class="filter-btn logic" onclick="setType('logic', this)">Logical Errors (5)</button>
+    <button class="filter-btn correct" onclick="setType('correct', this)">Correct Code (5)</button>
+  </div>
+  <div class="lang-filters">
+    <button class="lang-btn active" onclick="setLang('all', this)">All Languages</button>
+    <button class="lang-btn" onclick="setLang('Python', this)">Python</button>
+    <button class="lang-btn" onclick="setLang('JavaScript', this)">JavaScript</button>
+    <button class="lang-btn" onclick="setLang('C++', this)">C++</button>
+    <button class="lang-btn" onclick="setLang('Java', this)">Java</button>
+  </div>
+
+  <div class="examples-grid" id="grid"></div>
+  <div class="no-results" id="no-results" style="display:none">Koi example nahi mila is filter ke liye.</div>
+</div>
+
+<script>
+const examples = [
+  {
+    id:1, type:'syntax', lang:'Python', title:'Missing colon in function definition',
+    code:`def greet(name)
+    print("Hello, " + name)
+
+greet("Ali")`,
+    explain:`SYNTAX ERROR: Function definition ke baad colon (:) missing hai. Python mein 'def greet(name):' hona chahiye. Python colon se block shuru karta hai.`
+  },
+  {
+    id:2, type:'syntax', lang:'JavaScript', title:'Unclosed parenthesis in if statement',
+    code:`function checkAge(age) {
+  if (age >= 18 {
+    console.log("Adult hai");
+  } else {
+    console.log("Minor hai");
+  }
+}
+checkAge(20);`,
+    explain:`SYNTAX ERROR: if (age >= 18) mein closing parenthesis ) missing hai. JavaScript parser yahan SyntaxError throw karta hai.`
+  },
+  {
+    id:3, type:'syntax', lang:'C++', title:'Missing semicolon after variable declaration',
+    code:`#include <iostream>
+using namespace std;
+
+int main() {
+  int x = 10
+  int y = 20;
+  cout << x + y << endl;
+  return 0;
+}`,
+    explain:`SYNTAX ERROR: int x = 10 ke baad semicolon (;) missing hai. C++ mein har statement semicolon se end honi chahiye. Compiler error: "expected ';'"`
+  },
+  {
+    id:4, type:'syntax', lang:'Java', title:'Wrong string comparison using ==',
+    code:`public class Main {
+  public static void main(String[] args) {
+    String name = "Ahmed"
+    if (name == "Ahmed") {
+      System.out.println("Sahi naam");
+    }
+  }
+}`,
+    explain:`SYNTAX ERROR + BAD PRACTICE: Line 3 mein semicolon missing hai. Aur string comparison == se nahi, .equals() se hoti hai Java mein. Yeh compile nahi hoga.`
+  },
+  {
+    id:5, type:'syntax', lang:'Python', title:'Indentation error in loop',
+    code:`numbers = [1, 2, 3, 4, 5]
+total = 0
+for num in numbers:
+total += num  # Yahan indentation nahi hai
+print("Total:", total)`,
+    explain:`SYNTAX ERROR: for loop ke andar 'total += num' ko indent hona chahiye (4 spaces ya tab). Python indentation-sensitive language hai. IndentationError aayega.`
+  },
+  {
+    id:6, type:'logic', lang:'Python', title:'Off-by-one error in range',
+    code:`# 1 se 10 tak sum karna chahte hain
+total = 0
+for i in range(1, 10):  # Galat! 10 exclude hoga
+    total += i
+print("1-10 ka sum:", total)  # 45 aayega, 55 chahiye tha`,
+    explain:`LOGICAL ERROR: range(1, 10) sirf 1 se 9 tak jaata hai. 10 ko include karne ke liye range(1, 11) hona chahiye. Output 45 aata hai jabke 55 chahiye tha.`
+  },
+  {
+    id:7, type:'logic', lang:'JavaScript', title:'Wrong average calculation',
+    code:`function getAverage(numbers) {
+  let sum = 0;
+  for (let i = 0; i < numbers.length; i++) {
+    sum += numbers[i];
+  }
+  return sum / numbers.length + 1; // Galat order!
+}
+console.log(getAverage([10, 20, 30])); // 21 aayega, 20 chahiye`,
+    explain:`LOGICAL ERROR: Operator precedence galat hai. sum / numbers.length + 1 pehle divide karta hai phir +1 add karta hai. Sahi hona chahiye: return (sum / numbers.length);`
+  },
+  {
+    id:8, type:'logic', lang:'C++', title:'Infinite loop due to wrong condition',
+    code:`#include <iostream>
+using namespace std;
+
+int main() {
+  int count = 10;
+  while (count > 0) {
+    cout << count << endl;
+    count++;  // Galat! Decrease chahiye tha
+  }
+  return 0;
+}`,
+    explain:`LOGICAL ERROR: count-- hona chahiye, count++ nahi. Kyunki count 10 se shuru hota hai aur condition count > 0 hai, count++ karne se yeh kabhi 0 nahi hoga — infinite loop ban jaata hai.`
+  },
+  {
+    id:9, type:'logic', lang:'Java', title:'Integer division losing decimal',
+    code:`public class Main {
+  public static void main(String[] args) {
+    int a = 5;
+    int b = 2;
+    double result = a / b; // Integer division hogi!
+    System.out.println(result); // 2.0 aayega, 2.5 nahi
+  }
+}`,
+    explain:`LOGICAL ERROR: a aur b dono int hain, isliye a/b integer division karta hai aur result 2 hoga. 2.5 chahiye to ya to (double)a/b ya 5.0/2 likhna hoga.`
+  },
+  {
+    id:10, type:'logic', lang:'Python', title:'Mutable default argument bug',
+    code:`def add_item(item, my_list=[]):  # Yeh trap hai!
+    my_list.append(item)
+    return my_list
+
+print(add_item("apple"))   # ['apple']
+print(add_item("banana"))  # ['apple', 'banana'] ??? WHY!`,
+    explain:`LOGICAL ERROR: Python mein default mutable arguments (list, dict) sirf ek baar banti hain aur har call mein share hoti hain. Sahi: def add_item(item, my_list=None): aur phir if my_list is None: my_list = []`
+  },
+  {
+    id:11, type:'correct', lang:'Python', title:'Factorial using recursion',
+    code:`def factorial(n):
+    if n == 0 or n == 1:
+        return 1
+    return n * factorial(n - 1)
+
+# Test
+for i in range(6):
+    print(f"{i}! = {factorial(i)}")`,
+    explain:`CORRECT CODE: Base case (n==0 ya n==1) properly handle kiya. Recursion sahi tarike se n * factorial(n-1) karta hai. 0! = 1 bhi handle ho raha hai.`
+  },
+  {
+    id:12, type:'correct', lang:'JavaScript', title:'Async/Await with error handling',
+    code:`async function fetchUser(id) {
+  try {
+    const response = await fetch(
+      \`https://api.example.com/users/\${id}\`
+    );
+    if (!response.ok) {
+      throw new Error(\`HTTP error: \${response.status}\`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Fetch failed:", error.message);
+    return null;
+  }
+}
+
+fetchUser(1).then(user => console.log(user));`,
+    explain:`CORRECT CODE: async/await sahi use kiya. response.ok check karke HTTP errors handle kiye. try/catch se network errors bhi pakde. Template literals sahi syntax mein.`
+  },
+  {
+    id:13, type:'correct', lang:'C++', title:'Safe array sum with bounds checking',
+    code:`#include <iostream>
+#include <vector>
+using namespace std;
+
+double vectorSum(const vector<int>& nums) {
+    if (nums.empty()) return 0.0;
+    double total = 0.0;
+    for (const int& n : nums) {
+        total += n;
+    }
+    return total;
+}
+
+int main() {
+    vector<int> data = {10, 20, 30, 40, 50};
+    cout << "Sum: " << vectorSum(data) << endl;
+    return 0;
+}`,
+    explain:`CORRECT CODE: Empty vector check hai. const reference use kiya (no copy). Range-based for loop modern C++ style mein. double use kiya integer overflow se bachne ke liye.`
+  },
+  {
+    id:14, type:'correct', lang:'Java', title:'Proper string reversal',
+    code:`public class StringUtils {
+  public static String reverse(String str) {
+    if (str == null || str.isEmpty()) {
+      return str;
+    }
+    StringBuilder sb = new StringBuilder(str);
+    return sb.reverse().toString();
+  }
+
+  public static void main(String[] args) {
+    System.out.println(reverse("Pakistan")); // natsikaP
+    System.out.println(reverse(""));         // ""
+    System.out.println(reverse(null));       // null
+  }
+}`,
+    explain:`CORRECT CODE: null aur empty string edge cases handle kiye. StringBuilder use kiya jo String concatenation se zyada efficient hai. .reverse() built-in reliable method hai.`
+  },
+  {
+    id:15, type:'correct', lang:'Python', title:'Binary search implementation',
+    code:`def binary_search(arr, target):
+    left, right = 0, len(arr) - 1
+    while left <= right:
+        mid = left + (right - left) // 2  # Overflow-safe
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1  # Not found
+
+nums = [2, 5, 8, 12, 16, 23, 38, 56]
+print(binary_search(nums, 23))  # 5
+print(binary_search(nums, 10))  # -1`,
+    explain:`CORRECT CODE: mid = left + (right-left)//2 integer overflow se bachata hai. left <= right condition sahi hai. -1 return karta hai jab element nahi mila. O(log n) time complexity.`
+  }
+];
+
+let activeType = 'all';
+let activeLang = 'all';
+
+function setType(type, btn) {
+  activeType = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function setLang(lang, btn) {
+  activeLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function toggleCard(id) {
+  const card = document.getElementById('card-' + id);
+  card.classList.toggle('open');
+}
+
+function render() {
+  const filtered = examples.filter(e => {
+    const typeMatch = activeType === 'all' || e.type === activeType;
+    const langMatch = activeLang === 'all' || e.lang === activeLang;
+    return typeMatch && langMatch;
+  });
+
+  const grid = document.getElementById('grid');
+  const noRes = document.getElementById('no-results');
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    noRes.style.display = 'block';
+    return;
+  }
+  noRes.style.display = 'none';
+
+  grid.innerHTML = filtered.map(e => {
+    const typeBadge = e.type === 'syntax' ? 'syntax-badge' : e.type === 'logic' ? 'logic-badge' : 'correct-badge';
+    const typeLabel = e.type === 'syntax' ? 'Syntax Error' : e.type === 'logic' ? 'Logical Error' : 'Correct';
+    const codeClass = e.type === 'syntax' ? 'error' : e.type === 'logic' ? 'warning' : 'good';
+    return `
+    <div class="example-card" id="card-${e.id}">
+      <div class="card-header" onclick="toggleCard(${e.id})">
+        <span class="type-badge ${typeBadge}">${typeLabel}</span>
+        <span class="lang-badge">${e.lang}</span>
+        <span class="card-title">${e.title}</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="card-body">
+        <div class="code-section">
+          <div class="code-label">Code</div>
+          <div class="code-block ${codeClass}">${e.code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        </div>
+        <div class="explanation">
+          <div class="explanation-box ${e.type}">${e.explain}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+render();
+</script>
