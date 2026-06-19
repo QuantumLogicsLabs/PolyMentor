@@ -92,12 +92,12 @@ models_saved/polymentor-chatbot-lora
 curl -X POST http://127.0.0.1:8000/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "language": "python",
     "level": "beginner",
-    "message": "Find the bug and teach me the concept",
-    "code": "for i in range(10)\n    print(i)"
+    "message": "Teach me Python loops with a small example"
   }'
 ```
+
+For `/chat`, `level` controls the explanation style. Beginner responses stay simple and avoid advanced solutions unless the user explicitly asks for them.
 
 Response fields include:
 

@@ -29,10 +29,15 @@ curl -X POST http://127.0.0.1:8000/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Teach me Python loops with a small example",
-    "language": "python",
     "level": "beginner"
   }'
 ```
+
+`level` controls the teaching depth:
+
+- `beginner`: simple wording, tiny examples, no advanced shortcuts.
+- `intermediate`: practical reasoning without advanced architecture.
+- `advanced`: deeper technical details when useful.
 
 ## Review Code
 

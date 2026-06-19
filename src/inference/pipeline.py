@@ -20,7 +20,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Literal, Optional
 
+from dotenv import load_dotenv
 from groq import Groq
+
+load_dotenv()
 
 SUPPORTED_LANGUAGES = {
     "python",
@@ -46,6 +49,25 @@ LearnerLevel = Literal["beginner", "intermediate", "advanced"]
 DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_LEVEL: LearnerLevel = "beginner"
 DEFAULT_LANGUAGE = "python"
+
+LEVEL_GUIDANCE: dict[LearnerLevel, str] = {
+    "beginner": (
+        "Explain in beginner-friendly language. Use short sentences, define any "
+        "technical term before using it, and prefer tiny examples. Do not jump "
+        "to advanced patterns, clever shortcuts, complex architecture, or "
+        "performance-heavy solutions unless the user explicitly asks for them."
+    ),
+    "intermediate": (
+        "Assume the learner knows basic syntax. Explain the reasoning and tradeoffs, "
+        "but keep the solution practical and avoid advanced architecture or clever "
+        "optimizations unless they are necessary for the question."
+    ),
+    "advanced": (
+        "You may use precise technical language and discuss deeper tradeoffs, but "
+        "still keep the answer focused on the user's question and avoid unnecessary "
+        "over-engineering."
+    ),
+}
 
 
 @dataclass
@@ -223,7 +245,8 @@ class PolyMentorPipeline:
             "numeric quality score. Prefer teaching and corrected examples over "
             "judgement. When code is provided, structure your answer with these "
             "sections when useful: Likely bugs, Explanation, Fixed code, Lesson, "
-            "Next steps. Ask a clarifying question if the task is ambiguous."
+            "Next steps. Ask a clarifying question if the task is ambiguous.\n\n"
+            f"Level behavior: {LEVEL_GUIDANCE[level]}"
         )
 
         user = (

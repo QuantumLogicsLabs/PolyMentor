@@ -1,0 +1,36 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Local environments
+venv/
+venv312/
+.venv/
+
+# Generated or large artifacts
+PolyMentor.txt
+server_log.txt
+data/raw/
+data/processed/
+models_saved/
+experiments/
+src/runtime/tmp/
+
+# Website local artifacts
+website/node_modules/
+website/dist/
+website/.vite/
+
+# Docs and local reports are not required by the API image
+docs/
+*.md
+!README.md

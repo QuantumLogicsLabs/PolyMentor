@@ -56,8 +56,6 @@ pipeline = PolyMentorPipeline()
 class ChatRequest(BaseModel):
     """Request for chatbot interaction"""
     message: str = Field(..., description="User message or question")
-    code: str = Field(default="", description="Optional code to analyze")
-    language: str = Field(default="python", description="Programming language")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
@@ -648,8 +646,6 @@ def chat(request: ChatRequest):
     """
     response = pipeline.chat(
         message=request.message,
-        code=request.code,
-        language=request.language,
         level=request.level,
     )
     
