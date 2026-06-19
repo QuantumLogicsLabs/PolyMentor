@@ -62,7 +62,7 @@ if sys.version_info >= (3, 13):
     print("  .\\venv312\\Scripts\\Activate.ps1")
     print("  python -m pip install --upgrade pip")
     print("  python -m pip install -e .")
-    print("  python -m pip install -r requirements-groq.txt")
+    print("  python -m pip install -r requirements.txt")
     print("  python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio")
     print("  bash scripts/train.sh")
     sys.exit(1)

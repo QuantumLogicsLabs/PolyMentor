@@ -30,7 +30,7 @@ py -3.12 -m venv venv312
 .\venv312\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e .
-python -m pip install -r requirements-groq.txt
+python -m pip install -r requirements.txt
 python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
 bash scripts/train.sh
 ```
