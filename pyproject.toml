@@ -1,2 +1,16 @@
+[project]
+name = "polymentor"
+version = "0.1.0"
+description = "Groq-powered coding mentor API and PolyCode training pipeline."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "groq>=1.4.0",
+    "pydantic>=2.7",
+    "pymongo>=4.16.0",
+    "python-dotenv>=1.0.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
 [tool.vercel]
 entrypoint = "src.api.app:app"
