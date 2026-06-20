@@ -1,0 +1,28 @@
+name: PolyMentor Daily Check
+
+on:
+  schedule:
+    # Runs daily at 6:00 AM UTC. Adjust if you want a different time.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  deployed-api-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      POLYMENTOR_API_URL: ${{ vars.POLYMENTOR_API_URL || 'https://poly-mentor-bm2s.vercel.app' }}
+
+    steps:
+      - name: Check deployed health endpoint
+        run: |
+          curl --fail --show-error --silent "$POLYMENTOR_API_URL/health"
+
+      - name: Smoke test deployed chat endpoint
+        run: |
+          curl --fail --show-error --silent \
+            --request POST "$POLYMENTOR_API_URL/chat" \
+            --header "Content-Type: application/json" \
+            --data '{"message":"Say hello in one short sentence.","level":"beginner"}'
+
