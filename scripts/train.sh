@@ -40,12 +40,20 @@ LEARNING_RATE="${LEARNING_RATE:-2e-4}"
 MAX_LENGTH="${MAX_LENGTH:-1024}"
 INCLUDE_VENDOR="${INCLUDE_VENDOR:-1}"
 MAX_VENDOR_FILES="${MAX_VENDOR_FILES:-200}"
+FETCH_MONGODB_PROMPTS="${FETCH_MONGODB_PROMPTS:-0}"
+MONGODB_EXPORT_LIMIT="${MONGODB_EXPORT_LIMIT:-0}"
 
 echo "PolyMentor local fine-tuning"
 echo "Python:      $PYTHON"
 echo "Base model:  $BASE_MODEL"
 echo "Output:      $OUTPUT_DIR"
 echo ""
+
+if [[ "$FETCH_MONGODB_PROMPTS" == "1" || "$FETCH_MONGODB_PROMPTS" == "true" ]]; then
+    echo "Exporting cleaned MongoDB prompts from ${MONGODB_DB:-polycode}/${MONGODB_COLLECTION:-pormpts}..."
+    "$PYTHON" scripts/export_mongodb_prompts.py --limit "$MONGODB_EXPORT_LIMIT"
+    echo ""
+fi
 
 "$PYTHON" - <<'PY'
 import sys

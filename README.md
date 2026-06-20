@@ -63,6 +63,27 @@ PolyMentor LoRA adapter on an NVIDIA GPU such as an RTX 4050, install a CUDA
 PyTorch build first. On Windows, use Python 3.12 for CUDA training because
 PyTorch CUDA wheels are not available for every newest Python release.
 
+To build a training dataset from saved PolyCode conversations, set MongoDB
+credentials and export the `polycode/pormpts` collection:
+
+```bash
+export MONGODB_URI="mongodb+srv://user:pass@cluster/?retryWrites=true&w=majority"
+export MONGODB_DB="polycode"
+export MONGODB_COLLECTION="pormpts"
+python scripts/export_mongodb_prompts.py
+```
+
+The exporter writes cleaned records like this to
+`data/processed/mongodb_prompts.json`:
+
+```json
+{
+  "userMessage": "hello",
+  "assistantMessage": "Hello. Is there something I can help you with?",
+  "liked": false
+}
+```
+
 ```bash
 deactivate  # if another venv is active
 py -3.12 -m venv venv312
@@ -77,6 +98,7 @@ python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch t
 Then run:
 
 ```bash
+export FETCH_MONGODB_PROMPTS=1
 bash scripts/train.sh
 ```
 
@@ -85,6 +107,10 @@ The default checkpoint path is:
 ```text
 models_saved/polymentor-chatbot-lora
 ```
+
+GitHub Actions can also export and clean the MongoDB prompt data on a schedule.
+Add a repository secret named `MONGODB_URI`. The workflow uses GitHub's minimum
+scheduled interval of 5 minutes; Actions does not support 15-second cron runs.
 
 ## API Example
 
@@ -170,6 +196,9 @@ Mentor response:
 | --- | --- | --- |
 | `GROQ_API_KEY` | Yes | Authenticates calls to Groq. |
 | `GROQ_MODEL` | No | Overrides the default Groq chat model. |
+| `MONGODB_URI` | For prompt export | Connects to MongoDB for training data extraction. |
+| `MONGODB_DB` | No | MongoDB database name. Defaults to `polycode`. |
+| `MONGODB_COLLECTION` | No | MongoDB prompt collection. Defaults to `pormpts`. |
 
 ## What Changed From The Old Plan
 

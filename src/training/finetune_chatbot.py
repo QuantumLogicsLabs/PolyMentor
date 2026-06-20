@@ -82,6 +82,12 @@ def sample_to_training_text(sample: dict[str, Any], tokenizer: AutoTokenizer) ->
     return render_chat(tokenizer, user, assistant)
 
 
+def prompt_to_training_text(sample: dict[str, Any], tokenizer: AutoTokenizer) -> str:
+    user = str(sample.get("userMessage", "")).strip()
+    assistant = str(sample.get("assistantMessage", "")).strip()
+    return render_chat(tokenizer, user, assistant)
+
+
 def vendor_to_training_text(path: Path, tokenizer: AutoTokenizer, max_chars: int) -> str | None:
     language = LANGUAGE_BY_SUFFIX.get(path.suffix.lower())
     if not language:
@@ -137,7 +143,9 @@ def build_texts(args: argparse.Namespace, tokenizer: AutoTokenizer) -> list[str]
     for pattern in args.data_globs:
         for path in sorted(Path().glob(pattern)):
             for sample in load_json_records(path):
-                if sample.get("code"):
+                if sample.get("userMessage") and sample.get("assistantMessage"):
+                    texts.append(prompt_to_training_text(sample, tokenizer))
+                elif sample.get("code"):
                     texts.append(sample_to_training_text(sample, tokenizer))
 
     if args.include_vendor:

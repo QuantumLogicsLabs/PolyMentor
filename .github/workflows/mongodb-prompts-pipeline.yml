@@ -1,0 +1,64 @@
+name: MongoDB Prompts Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum MongoDB documents to export. Use 0 for all."
+        required: false
+        default: "0"
+      only_liked:
+        description: "Export only liked conversations."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  schedule:
+    # GitHub Actions scheduled workflows do not support 15-second intervals.
+    - cron: "*/5 * * * *"
+
+jobs:
+  export-prompts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DB: polycode
+      MONGODB_COLLECTION: pormpts
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install exporter dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Export and clean MongoDB prompt conversations
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '0' }}"
+          ONLY_LIKED="${{ github.event.inputs.only_liked || 'false' }}"
+          ARGS=(--database "$MONGODB_DB" --collection "$MONGODB_COLLECTION" --limit "$LIMIT")
+          if [ "$ONLY_LIKED" = "true" ]; then
+            ARGS+=(--only-liked)
+          fi
+          python scripts/export_mongodb_prompts.py "${ARGS[@]}"
+
+      - name: Remove generated caches and report large folders
+        run: python scripts/maintenance_cleanup.py --min-mb 50
+
+      - name: Upload cleaned prompt dataset
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongodb-prompts
+          path: data/processed/mongodb_prompts.json
+          if-no-files-found: error

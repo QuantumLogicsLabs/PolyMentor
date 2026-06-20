@@ -8,6 +8,8 @@ setup(
         "fastapi",
         "groq",
         "pydantic",
+        "pymongo",
+        "python-dotenv",
         "uvicorn",
     ],
 )
