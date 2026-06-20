@@ -27,7 +27,7 @@ jobs:
     env:
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       MONGODB_DB: polycode
-      MONGODB_COLLECTION: pormpts
+      MONGODB_COLLECTION: prompts
 
     steps:
       - name: Check out repository

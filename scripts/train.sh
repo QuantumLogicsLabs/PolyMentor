@@ -50,7 +50,7 @@ echo "Output:      $OUTPUT_DIR"
 echo ""
 
 if [[ "$FETCH_MONGODB_PROMPTS" == "1" || "$FETCH_MONGODB_PROMPTS" == "true" ]]; then
-    echo "Exporting cleaned MongoDB prompts from ${MONGODB_DB:-polycode}/${MONGODB_COLLECTION:-pormpts}..."
+    echo "Exporting cleaned MongoDB prompts from ${MONGODB_DB:-polycode}/${MONGODB_COLLECTION:-prompts}..."
     "$PYTHON" scripts/export_mongodb_prompts.py --limit "$MONGODB_EXPORT_LIMIT"
     echo ""
 fi

@@ -64,12 +64,12 @@ PyTorch build first. On Windows, use Python 3.12 for CUDA training because
 PyTorch CUDA wheels are not available for every newest Python release.
 
 To build a training dataset from saved PolyCode conversations, set MongoDB
-credentials and export the `polycode/pormpts` collection:
+credentials and export the `polycode/prompts` collection:
 
 ```bash
 export MONGODB_URI="mongodb+srv://user:pass@cluster/?retryWrites=true&w=majority"
 export MONGODB_DB="polycode"
-export MONGODB_COLLECTION="pormpts"
+export MONGODB_COLLECTION="prompts"
 python scripts/export_mongodb_prompts.py
 ```
 
@@ -198,7 +198,7 @@ Mentor response:
 | `GROQ_MODEL` | No | Overrides the default Groq chat model. |
 | `MONGODB_URI` | For prompt export | Connects to MongoDB for training data extraction. |
 | `MONGODB_DB` | No | MongoDB database name. Defaults to `polycode`. |
-| `MONGODB_COLLECTION` | No | MongoDB prompt collection. Defaults to `pormpts`. |
+| `MONGODB_COLLECTION` | No | MongoDB prompt collection. Defaults to `prompts`. |
 
 ## What Changed From The Old Plan
 

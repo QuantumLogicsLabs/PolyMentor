@@ -1,9 +1,7 @@
 """
 Export and clean PolyCode prompt conversations from MongoDB.
 
-The production collection is named "pormpts" in the "polycode" database.
-This module keeps that spelling as the default because it reflects the
-existing MongoDB collection name.
+The production collection is named "prompts" in the "polycode" database.
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 DEFAULT_DATABASE = "polycode"
-DEFAULT_COLLECTION = "pormpts"
+DEFAULT_COLLECTION = "prompts"
 DEFAULT_OUTPUT = "data/processed/mongodb_prompts.json"
 
 
