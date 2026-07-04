@@ -21,12 +21,23 @@ class ErrorClassifier:
     def __init__(self, error_types_path: str = "data/labels/error_types.json"):
         with open(error_types_path, "r") as f:
             self.error_types = json.load(f)
-        # Reverse map: index → name
-        self.idx_to_label = {v: k for k, v in self.error_types.items()}
+        # Reverse map: index → name. The repository stores label groups as lists,
+        # so we flatten them into a stable index-to-label mapping.
+        flattened = []
+        for category, specifics in self.error_types.items():
+            flattened.extend(
+                [f"{category}/{specific}" for specific in specifics]
+            )
+        self.idx_to_label = {idx: label for idx, label in enumerate(flattened)}
 
     def decode(self, binary_vector: list) -> list:
         """Convert a binary prediction vector to a list of error label strings."""
-        return [self.idx_to_label[i] for i, val in enumerate(binary_vector) if val == 1]
+        labels = []
+        for i, val in enumerate(binary_vector):
+            if val == 1:
+                label = self.idx_to_label[i]
+                labels.append(label.split("/", 1)[0])
+        return labels
 
     def get_concepts(self, error_labels: list) -> list:
         """Map error labels to the concepts they teach."""

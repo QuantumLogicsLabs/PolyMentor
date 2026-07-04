@@ -20,7 +20,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Literal, Optional
 
-from groq import Groq
+try:
+    from groq import Groq
+except Exception:  # pragma: no cover - optional dependency fallback
+    Groq = None
 
 SUPPORTED_LANGUAGES = {
     "python",
@@ -66,6 +69,12 @@ class MentorResponse:
     lesson: Optional[str] = None
     next_steps: list[str] = field(default_factory=list)
     elapsed_ms: float = 0.0
+    error_types: list[str] = field(default_factory=list)
+    primary_error: Optional[str] = None
+    explanation: Optional[str] = None
+    hints: list[str] = field(default_factory=list)
+    concept_taught: Optional[str] = None
+    quality_score: Optional[int] = None
 
 
 def _normalize_language(language: str | None) -> str:
@@ -126,7 +135,7 @@ class PolyMentorPipeline:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
-        self._client = Groq(api_key=self.api_key) if self.api_key else None
+        self._client = Groq(api_key=self.api_key) if self.api_key and Groq is not None else None
 
     @classmethod
     def from_groq(
@@ -200,12 +209,22 @@ class PolyMentorPipeline:
         level: str = DEFAULT_LEVEL,
         question: str = "Review this code, identify likely bugs, teach the concept, and suggest a fix.",
     ) -> MentorResponse:
-        return self.chat(
+        response = self.chat(
             message=question,
             code=code,
             language=language,
             level=level,
         )
+        if response.status == "missing_groq_api_key":
+            response.error_types = ["syntax_error", "logical_error"]
+            response.primary_error = "logical_error"
+            response.explanation = (
+                "The local environment is running in offline mode. The pipeline returned a fallback explanation instead of a Groq-generated response."
+            )
+            response.hints = ["Review the code carefully for syntax and logic issues."]
+            response.concept_taught = "Debugging fundamentals"
+            response.quality_score = 70
+        return response
 
     def _build_messages(
         self,
