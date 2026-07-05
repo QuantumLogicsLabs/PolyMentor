@@ -9,7 +9,8 @@ dist/
 build/
 .eggs/
 logs/
-
+.vscode
+.vscode/
 # Data & Models (too large for git)
 data/raw/
 data/processed/
