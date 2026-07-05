@@ -1,118 +1,150 @@
 # PolyMentor
 
-PolyMentor is a Groq-powered coding tutor chatbot. It teaches programming,
-helps write code in multiple languages, reviews snippets, identifies likely
-bugs, explains why they happen, and turns fixes into learning guidance.
+PolyMentor is the AI mentor layer of the **PolyCode ecosystem** (SENODROOM): a Groq-powered coding tutor, a deployable FastAPI service, an MLOps training pipeline, and the documentation site that explains how everything fits together.
 
-The new plan is not to train a local CodeBERT-style scoring model by default.
-PolyMentor uses Groq for fast LLM responses and keeps the repository focused on
-chat, teaching, bug explanation, and multi-language coding help.
+**Today:** learners chat in PolyCode; Groq answers in real time; every conversation (and thumbs up/down feedback) is stored in MongoDB.
 
-## Purpose
+**Next:** export rated prompts, fine-tune a LoRA adapter on a GPU, evaluate against Groq, and promote only when quality improves.
 
-PolyMentor should feel like a patient coding mentor:
+## What this repository contains
 
-- Teach programming concepts at beginner, intermediate, or advanced depth.
-- Help users write code in Python, JavaScript, TypeScript, Java, C++, C, C#,
-  Go, Rust, PHP, Ruby, Swift, Kotlin, SQL, HTML, and CSS.
-- Review code and identify likely bugs.
-- Explain the reason behind a fix instead of only giving the answer.
-- Generate corrected code, examples, and practice tasks.
-- Ask clarifying questions when the requested program is underspecified.
+| Piece | Role |
+| --- | --- |
+| **`src/api/app.py`** | FastAPI service — `/health`, `/chat`, code analysis, learning paths, hints |
+| **`src/inference/`** | Groq mentor pipeline + terminal tutor |
+| **`src/data_pipeline/`** | MongoDB prompt export and dataset cleaning |
+| **`src/training/`** | LoRA fine-tuning (`finetune_chatbot.py`) |
+| **`scripts/`** | Export, train, preprocess, local Windows startup |
+| **`.github/workflows/`** | Daily deployed API checks + scheduled MongoDB export |
+| **`website/`** | React guide site (Setup, PolyCode, MLOps, Deploy, Vision) |
 
-## Groq Setup
+## Related repositories
 
-PolyMentor uses the Groq Python SDK and the Chat Completions API.
+| Repo | Purpose |
+| --- | --- |
+| [PolyCode-Frontend](https://github.com/QuantumLogicsLabs/PolyCode-Frontend) | React learner app — lessons, playground, in-app PolyMentor assistant |
+| [PolyCode-Backend](https://github.com/QuantumLogicsLabs/PolyCode-Backend) | Express API — auth, chat, profiles, certificates, prompt storage |
+| [PolyMentor](https://github.com/QuantumLogicsLabs/PolyMentor) | This repo — FastAPI mentor, training pipeline, automation, docs site |
+| [PolyMentor-Website](https://github.com/QuantumLogicsLabs/PolyMentor-Website) | Standalone deployment of the `website/` guide (git submodule) |
+
+## Architecture
+
+```text
+PolyCode React app
+  -> Express backend (/api/chat/assistant)
+       -> Groq API (live answers)
+       -> MongoDB polycode.prompts (userMessage, assistantMessage, liked, context)
+  -> optional: PolyMentor FastAPI (https://poly-mentor-bm2s.vercel.app)
+
+MLOps loop
+  -> GitHub Actions exports + cleans prompts
+  -> GPU worker runs LoRA training (scripts/train.sh)
+  -> evaluate.sh compares quality vs Groq baseline
+  -> promote custom adapter only if better; Groq stays fallback
+
+Automation
+  -> polymentor-daily.yml — smoke-test deployed /health and /chat
+  -> mongodb-prompts-pipeline.yml — export training JSON on schedule
+  -> start-polymentor-local.ps1 — start API on Windows laptop
+  -> register-polymentor-daily-task.ps1 — Windows Task Scheduler wrapper
+```
+
+PolyCode’s in-app assistant uses the **Node backend** by default (`ASSISTANT_PROVIDER=polymentor|groq|custom` in PolyCode Backend). The Python FastAPI service can run separately on Vercel or locally for direct `/chat` access and advanced analysis endpoints.
+
+## Quick start
+
+### 1. Environment
+
+Copy `.env.example` to `.env` and set at least:
 
 ```bash
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+```
+
+For training data export, also set `MONGODB_URI` (or `MONGODB_USER`, `MONGODB_PASSWORD`, `MONGODB_CLUSTER`).
+
+### 2. Install (Python 3.12)
+
+```bash
+cd PolyMentor
+python -m venv .venv
+# Windows
+.\.venv\Scripts\Activate.ps1
+# macOS/Linux
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
 python -m pip install -e .
-python -m pip install -r requirements.txt
-export GROQ_API_KEY="your_groq_api_key"
 ```
 
-Optional model override:
+### 3. Run the FastAPI mentor API
 
 ```bash
-export GROQ_MODEL="llama-3.3-70b-versatile"
+uvicorn src.api.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## Run the Chatbot
+Open **http://127.0.0.1:8000/docs**
 
-Interactive terminal tutor:
+**Windows one-liner** (creates `.venv`, installs deps, starts in background):
+
+```powershell
+.\scripts\start-polymentor-local.ps1
+# Optional: register daily local startup
+.\scripts\register-polymentor-daily-task.ps1 -StartTime 09:00 -Port 8000
+```
+
+### 4. Run the guide website
 
 ```bash
+cd website
+npm install
+npm run dev
+```
+
+Open **http://localhost:5173** — routes: `/`, `/setup`, `/polycode`, `/mlops`, `/deploy`, `/vision`.
+
+### 5. Run the full PolyCode stack (what learners use)
+
+```bash
+# Terminal 1 — PolyCode Backend
+cd PolyCode-Backend
+npm run dev
+
+# Terminal 2 — PolyCode Frontend
+cd PolyCode-Frontend
+npm start
+```
+
+Set `GROQ_API_KEY` in the backend `.env`. The PolyMentor FAB in PolyCode posts to `/api/chat/assistant` and saves feedback to MongoDB.
+
+### 6. Terminal tutor (no browser)
+
+```bash
+export GROQ_API_KEY=your_key
 bash scripts/run_tutor.sh
 ```
 
-FastAPI server:
+## API overview
 
-```bash
-uvicorn src.api.app:app --reload
-```
+Deployed example: **https://poly-mentor-bm2s.vercel.app**
 
-Open:
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health` | Liveness check |
+| `POST /chat` | Groq-powered mentor chat (`level`: beginner \| intermediate \| advanced) |
+| `POST /analyze` | Code analysis with error detection |
+| `POST /analyze/detailed` | Deeper analysis |
+| `GET /learn/concepts` | List teachable concepts |
+| `GET /learn/concept/{id}` | Concept explanation |
+| `POST /learn/from-error` | Turn an error into a lesson |
+| `GET /learn/path/{id}` | Structured learning path |
+| `POST /learn/explain-code` | Explain what code does |
+| `GET /learn/hints/{error_type}` | Step-by-step hints by error type |
+| `POST /learn/next-hint` | Adaptive next hint |
+| `POST /learn/adaptive-level` | Suggest difficulty level |
 
-```text
-http://127.0.0.1:8000/docs
-```
-
-## Optional Local Fine-Tuning
-
-Groq remains the default runtime. If you want to experiment with a local
-PolyMentor LoRA adapter on an NVIDIA GPU such as an RTX 4050, install a CUDA
-PyTorch build first. On Windows, use Python 3.12 for CUDA training because
-PyTorch CUDA wheels are not available for every newest Python release.
-
-To build a training dataset from saved PolyCode conversations, set MongoDB
-credentials and export the `polycode/prompts` collection:
-
-```bash
-export MONGODB_URI="mongodb+srv://user:pass@cluster/?retryWrites=true&w=majority"
-export MONGODB_DB="polycode"
-export MONGODB_COLLECTION="prompts"
-python scripts/export_mongodb_prompts.py
-```
-
-The exporter writes cleaned records like this to
-`data/processed/mongodb_prompts.json`:
-
-```json
-{
-  "userMessage": "hello",
-  "assistantMessage": "Hello. Is there something I can help you with?",
-  "liked": false
-}
-```
-
-```bash
-deactivate  # if another venv is active
-py -3.12 -m venv venv312
-.\venv312\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e .
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-train.txt
-python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
-```
-
-Then run:
-
-```bash
-export FETCH_MONGODB_PROMPTS=1
-bash scripts/train.sh
-```
-
-The default checkpoint path is:
-
-```text
-models_saved/polymentor-chatbot-lora
-```
-
-GitHub Actions can also export and clean the MongoDB prompt data on a schedule.
-Add a repository secret named `MONGODB_URI`. The workflow uses GitHub's minimum
-scheduled interval of 5 minutes; Actions does not support 15-second cron runs.
-
-## API Example
+### Chat example
 
 ```bash
 curl -X POST http://127.0.0.1:8000/chat \
@@ -123,109 +155,152 @@ curl -X POST http://127.0.0.1:8000/chat \
   }'
 ```
 
-For `/chat`, `level` controls the explanation style. Beginner responses stay simple and avoid advanced solutions unless the user explicitly asks for them.
+`/chat` response fields include `answer`, `suspected_bugs`, `fixed_code`, `lesson`, `next_steps`, and `elapsed_ms`.
 
-Response fields include:
+## MLOps — from chats to a better model
 
-- `answer`: the full mentor response
-- `suspected_bugs`: extracted likely bug bullets when present
-- `fixed_code`: first corrected code block when present
-- `lesson`: teaching section when present
-- `next_steps`: extracted next-step bullets when present
+### 1. Store conversations in MongoDB
 
-No numeric quality score is returned.
+PolyCode Backend writes each assistant turn to `polycode.prompts` with optional `liked` (true/false) from in-app feedback.
 
-## Python API
+### 2. Export training data
 
-```python
-from src.inference.pipeline import PolyMentorPipeline
+```bash
+export MONGODB_URI="mongodb+srv://user:pass@cluster/?retryWrites=true&w=majority"
+export MONGODB_DB=polycode
+export MONGODB_COLLECTION=prompts
 
-mentor = PolyMentorPipeline.from_groq()
-
-result = mentor.analyze(
-    code="for i in range(10)\n    print(i)",
-    language="python",
-    level="beginner",
-)
-
-print(result.answer)
+python scripts/export_mongodb_prompts.py
+# Output: data/processed/mongodb_prompts.json
 ```
 
-## Project Structure
+Export only rated conversations:
+
+```bash
+python scripts/export_mongodb_prompts.py --only-liked
+```
+
+Cleaned record shape:
+
+```json
+{
+  "userMessage": "How do I fix this loop?",
+  "assistantMessage": "You are missing a colon after the for line...",
+  "liked": true
+}
+```
+
+### 3. Preprocess (optional)
+
+```bash
+bash scripts/preprocess.sh
+```
+
+### 4. Fine-tune on GPU
+
+Groq remains the **production** runtime until a custom checkpoint beats it on eval.
+
+On Windows, use **Python 3.12** and a CUDA PyTorch build for training:
+
+```bash
+py -3.12 -m venv venv312
+.\venv312\Scripts\Activate.ps1
+python -m pip install -e .
+python -m pip install -r requirements-train.txt
+python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
+
+export FETCH_MONGODB_PROMPTS=1
+bash scripts/train.sh
+```
+
+Default checkpoint:
+
+```text
+models_saved/polymentor-chatbot-lora
+```
+
+### 5. Evaluate and promote
+
+```bash
+bash scripts/evaluate.sh
+```
+
+Promote the adapter only when quality improves. Keep Groq as fallback (`GROQ_FALLBACK_MODEL` in `.env`).
+
+### GitHub Actions automation
+
+| Workflow | Schedule | Purpose |
+| --- | --- | --- |
+| `polymentor-daily.yml` | Daily 06:00 UTC | Smoke-test deployed `/health` and `/chat` |
+| `mongodb-prompts-pipeline.yml` | Every 5 minutes (manual dispatch too) | Export MongoDB prompts → artifact `mongodb_prompts.json` |
+
+Add repository secret **`MONGODB_URI`** for the export workflow.
+
+## Environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GROQ_API_KEY` | Yes (API/chat) | Groq authentication |
+| `GROQ_MODEL` | No | Default chat model (e.g. `llama-3.3-70b-versatile`) |
+| `GROQ_FALLBACK_MODEL` | No | Fallback when hybrid/custom routing is enabled |
+| `MONGODB_URI` | For export / Actions | Full MongoDB connection string |
+| `MONGODB_DB` | No | Database name (default `polycode`) |
+| `MONGODB_COLLECTION` | No | Collection name (default `prompts`) |
+| `POLYMENTOR_API_URL` | PolyCode Backend | Base URL for `ASSISTANT_PROVIDER=polymentor` (default deployed Vercel URL) |
+
+## Project structure
 
 ```text
 PolyMentor/
 ├── src/
-│   ├── api/app.py                 # FastAPI chat/review/teach endpoints
-│   ├── inference/pipeline.py      # Groq-powered mentor pipeline
-│   ├── inference/tutor.py         # Interactive terminal tutor
-│   ├── models/groq_model.py       # Groq model adapter
-│   ├── models/*_error_detector.py # Optional local language heuristics
-│   └── analysis/                  # Optional local code analysis helpers
-├── configs/model_config.yaml      # Groq and chatbot configuration
-├── scripts/run_tutor.sh           # Start terminal tutor
-├── scripts/train.sh               # Explains that local training is not default
-├── scripts/evaluate.sh            # Explains conversational evaluation
-├── website/                       # React teaching/marketing site
-└── docs/                          # Architecture and usage docs
+│   ├── api/app.py              # FastAPI application (v0.3)
+│   ├── inference/              # Groq pipeline, tutor, predict
+│   ├── data_pipeline/          # MongoDB export, clean, tokenize
+│   ├── training/               # LoRA fine-tuning
+│   ├── evaluation/             # Model evaluation helpers
+│   ├── analysis/               # Advanced code analyzer
+│   ├── learning/               # Concept library and paths
+│   ├── reasoning_engine/       # Hints, feedback scoring
+│   ├── models/                 # Groq adapter + language heuristics
+│   └── utils/
+├── scripts/
+│   ├── export_mongodb_prompts.py
+│   ├── train.sh / preprocess.sh
+│   ├── start-polymentor-local.ps1
+│   └── register-polymentor-daily-task.ps1
+├── .github/workflows/
+├── website/                    # React guide (submodule → PolyMentor-Website)
+├── tests/
+└── docs/
 ```
 
-## Current Architecture
+## Vision (SENODROOM)
 
-```text
-User question + optional code
-        |
-        v
-PolyMentorPipeline
-        |
-        v
-Groq Chat Completions API
-        |
-        v
-Mentor response:
-  - likely bugs
-  - explanation
-  - fixed code
-  - lesson
-  - next steps
-```
+PolyMentor is not only a chatbot. The ecosystem goal is:
 
-## Environment Variables
+1. **Teach with context** — lessons, playground code, and mentor chat share the same learner session.
+2. **Turn learning into proof** — profiles, progress, certificates, and follows.
+3. **Automate the routine** — GitHub checks, prompt export, scheduled local API startup.
+4. **Improve in layers** — Groq today; MongoDB-fed LoRA tomorrow; hybrid inference when eval passes.
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `GROQ_API_KEY` | Yes | Authenticates calls to Groq. |
-| `GROQ_MODEL` | No | Overrides the default Groq chat model. |
-| `MONGODB_URI` | For prompt export | Connects to MongoDB for training data extraction. |
-| `MONGODB_DB` | No | MongoDB database name. Defaults to `polycode`. |
-| `MONGODB_COLLECTION` | No | MongoDB prompt collection. Defaults to `prompts`. |
+See the **Vision** page on the guide site for the full roadmap.
 
-## What Changed From The Old Plan
-
-Removed as the default direction:
-
-- Local checkpoint training as the main product path.
-- CodeBERT/CodeT5 as required runtime components.
-- F1, BERTScore, and numeric quality scoring as user-facing outputs.
-- `models_saved/best_mentor_model.pt` as the required entrypoint.
-
-Kept as useful support:
-
-- Multi-language bug-detection ideas.
-- AST and analysis helpers for future context enrichment.
-- Documentation and examples that help teach programming.
-
-## Development Checks
+## Development checks
 
 ```bash
-python -m py_compile src/inference/pipeline.py src/api/app.py src/inference/tutor_mode.py
+python -m py_compile src/api/app.py src/inference/pipeline.py src/inference/tutor_mode.py
+python -m pytest tests/ -q
 npm --prefix website run build
 ```
 
-## Groq References
+## Deployment
 
-Groq official docs describe the Python SDK, `GROQ_API_KEY`, and chat
-completion calls through `client.chat.completions.create(...)`.
+- **FastAPI:** Vercel entrypoint `src.api.app:app` (see `pyproject.toml` `[tool.vercel]`)
+- **Guide site:** `cd website && npm run build` — deploy `dist/` (Vercel root: `website`)
+- **PolyCode:** deploy Frontend + Backend separately; point `POLYMENTOR_API_URL` at your FastAPI host if not using Groq directly
 
-- https://console.groq.com/docs/text-chat
-- https://console.groq.com/docs/api-reference
+## References
+
+- Groq chat API: https://console.groq.com/docs/text-chat
+- Groq API reference: https://console.groq.com/docs/api-reference
+- Interactive API docs (local): http://127.0.0.1:8000/docs
