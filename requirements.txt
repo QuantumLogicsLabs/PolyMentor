@@ -168,7 +168,6 @@ rouge_score==0.1.2
 rpds-py==0.30.0
 sacrebleu==2.6.0
 safetensors==0.7.0
-sahih-muslim==1.1.2
 scikit-learn==1.8.0
 scipy==1.17.1
 seaborn==0.13.2
@@ -183,7 +182,6 @@ smmap==5.0.3
 soupsieve==2.8.3
 stack-data==0.6.3
 starlette==1.0.0
-sunnah==1.5.0
 sympy==1.14.0
 tabulate==0.10.0
 tensorboard==2.20.0
@@ -224,6 +222,4 @@ win32_setctime==1.2.0
 windows-curses==2.4.2a2
 xxhash==3.6.0
 yarl==1.23.0
-accelerate>=0.34,<2
-peft>=0.12,<1
 groq>=1.4.0

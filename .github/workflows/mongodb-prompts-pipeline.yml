@@ -16,8 +16,9 @@ on:
           - "false"
           - "true"
   schedule:
-    # GitHub Actions scheduled workflows do not support 15-second intervals.
-    - cron: "*/5 * * * *"
+    # Hourly. Was every 5 minutes, which meant 288 unbounded scans/day of a
+    # live production collection for no real freshness benefit.
+    - cron: "0 * * * *"
 
 jobs:
   export-prompts:

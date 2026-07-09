@@ -1,0 +1,102 @@
+[
+  {
+    "userMessage": "I am a beginner. Can you teach me how for loops work in Python, with a small example?",
+    "language": "python",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "Here is my code:\n\nfor i in range(10)\n    print(i)\n\nIt throws an error. What's wrong and how do I fix it?",
+    "language": "python",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "Why does this print the same value three times?\n\nfuncs = []\nfor i in range(3):\n    funcs.append(lambda: i)\nprint([f() for f in funcs])",
+    "language": "python",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "Explain the difference between a list and a tuple in Python, and when I should use each.",
+    "language": "python",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "My recursive function hits a RecursionError on large inputs. How do I fix it and what's the underlying cause?",
+    "language": "python",
+    "level": "advanced"
+  },
+  {
+    "userMessage": "What does 'undefined is not a function' mean in JavaScript, and how do I debug it?",
+    "language": "javascript",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "Explain closures in JavaScript with a simple example a beginner can follow.",
+    "language": "javascript",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "This code never resolves:\n\nfunction getData() {\n  return new Promise((resolve) => {\n    fetchData(resolve);\n  });\n}\n\nasync function run() {\n  const data = getData();\n  console.log(data);\n}\n\nWhy, and how do I fix it?",
+    "language": "javascript",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "What's the difference between '==' and '===' in JavaScript? Give an example where it matters.",
+    "language": "javascript",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "How do I avoid callback hell in JavaScript? Show a before/after with async/await.",
+    "language": "javascript",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "I'm getting a NullPointerException in Java but I don't understand why. How do I track it down?",
+    "language": "java",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "Explain the difference between an interface and an abstract class in Java, with a small example.",
+    "language": "java",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "Why do I get 'ConcurrentModificationException' when I remove items from a list while iterating over it in Java?",
+    "language": "java",
+    "level": "advanced"
+  },
+  {
+    "userMessage": "What is the difference between '==' and '.equals()' for Strings in Java?",
+    "language": "java",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "My Java program compiles but throws 'StackOverflowError'. What usually causes that?",
+    "language": "java",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "This C++ code crashes at runtime:\n\nint* p = new int(5);\ndelete p;\ndelete p;\n\nWhat's wrong and why is this dangerous?",
+    "language": "cpp",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "Explain the difference between a pointer and a reference in C++ to a beginner.",
+    "language": "cpp",
+    "level": "beginner"
+  },
+  {
+    "userMessage": "Why does this loop run forever?\n\nfor (unsigned int i = 10; i >= 0; i--) {\n    std::cout << i << std::endl;\n}",
+    "language": "cpp",
+    "level": "intermediate"
+  },
+  {
+    "userMessage": "What is a memory leak in C++ and how do smart pointers help prevent it?",
+    "language": "cpp",
+    "level": "advanced"
+  },
+  {
+    "userMessage": "Can you review this code and point out likely bugs, then explain the concept behind the fix?\n\ndef average(nums):\n    total = 0\n    for n in nums:\n        total += n\n    return total / len(nums)\n\naverage([])",
+    "language": "python",
+    "level": "beginner"
+  }
+]

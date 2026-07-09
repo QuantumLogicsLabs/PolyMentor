@@ -1,6 +1,6 @@
 from src.inference.pipeline import PolyMentorPipeline
 
-mentor = PolyMentorPipeline.from_pretrained("models_saved/best_mentor_model.pt")
+mentor = PolyMentorPipeline.from_pretrained()
 
 result = mentor.analyze(
     """

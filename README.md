@@ -39,8 +39,9 @@ PolyCode React app
 MLOps loop
   -> GitHub Actions exports + cleans prompts
   -> GPU worker runs LoRA training (scripts/train.sh)
-  -> evaluate.sh compares quality vs Groq baseline
-  -> promote custom adapter only if better; Groq stays fallback
+  -> evaluate.sh: blind Groq-judged comparison, LoRA vs Groq, on a fixed eval set
+  -> promotes the checkpoint locally if it wins; serving it still needs a
+     separate GPU-hosted inference path (manual/future) — Groq stays production
 
 Automation
   -> polymentor-daily.yml — smoke-test deployed /health and /chat
@@ -225,14 +226,31 @@ models_saved/polymentor-chatbot-lora
 bash scripts/evaluate.sh
 ```
 
-Promote the adapter only when quality improves. Keep Groq as fallback (`GROQ_FALLBACK_MODEL` in `.env`).
+This runs a real comparison, not a manual checklist: it generates answers to a
+fixed prompt set (`data/eval/eval_prompts.json`) from both the local LoRA
+checkpoint and Groq, then has Groq itself (`GROQ_FALLBACK_MODEL`, blind,
+order-randomized) judge each pair. A report is written to
+`experiments/logs/eval_<timestamp>.json`. If the LoRA checkpoint's win rate
+clears `PROMOTE_THRESHOLD` (default 55%) over at least `PROMOTE_MIN_COMPARISONS`
+(default 10) non-tie comparisons, it's copied to
+`models_saved/polymentor-chatbot-lora-promoted/` with a promotion manifest.
+
+Promotion only means "this checkpoint is good enough to consider" — it does
+**not** switch `/chat` over automatically. Serving a promoted checkpoint in
+place of Groq would need a separate, persistent GPU-hosted inference path,
+which is a deliberate future step, not something this repo automates today.
+Groq remains the production runtime regardless of promotion.
+
+This is designed to run for free: LoRA generation happens locally (same GPU
+session you already used to train), and the Groq calls are low-volume (~20
+prompts) against the API key you already have.
 
 ### GitHub Actions automation
 
 | Workflow | Schedule | Purpose |
 | --- | --- | --- |
 | `polymentor-daily.yml` | Daily 06:00 UTC | Smoke-test deployed `/health` and `/chat` |
-| `mongodb-prompts-pipeline.yml` | Every 5 minutes (manual dispatch too) | Export MongoDB prompts → artifact `mongodb_prompts.json` |
+| `mongodb-prompts-pipeline.yml` | Hourly (manual dispatch too) | Export MongoDB prompts → artifact `mongodb_prompts.json` |
 
 Add repository secret **`MONGODB_URI`** for the export workflow.
 

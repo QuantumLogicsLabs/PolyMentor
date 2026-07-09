@@ -1,0 +1,9 @@
+# Training/eval extras for src/training/finetune_chatbot.py and
+# src/evaluation/eval_chatbot.py. Install torch separately with a CUDA build:
+#   python -m pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
+transformers>=4.44,<5
+peft>=0.12,<1
+accelerate>=0.34,<2
+bitsandbytes>=0.43
+safetensors>=0.4
+sentencepiece>=0.2
