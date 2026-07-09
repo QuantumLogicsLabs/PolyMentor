@@ -39,9 +39,9 @@ jobs:
           python-version: "3.12" #This is the Python version to use.
 
       - name: Install exporter dependencies
-        run: 
-          python -m pip install --upgrade pip 
-          python -m pip install -e . #Installs all packages your scripts need.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
 
       - name: Export and clean MongoDB prompt conversations
         run: |
