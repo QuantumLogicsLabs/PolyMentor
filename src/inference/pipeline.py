@@ -20,8 +20,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable, Literal, Optional
 
+import json
 from dotenv import load_dotenv
-from groq import Groq
+from groq import AsyncGroq
 
 load_dotenv()
 
@@ -109,25 +110,6 @@ def _normalize_level(level: str | None) -> LearnerLevel:
     return DEFAULT_LEVEL
 
 
-def _extract_code_block(text: str) -> Optional[str]:
-    match = re.search(r"```(?:[a-zA-Z0-9_+#.-]+)?\n(.*?)```", text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return None
-
-
-def _extract_bullets_after(text: str, heading: str) -> list[str]:
-    pattern = rf"{re.escape(heading)}\s*:?\s*\n(?P<body>(?:[-*]\s+.*(?:\n|$))+)"
-    match = re.search(pattern, text, re.IGNORECASE)
-    if not match:
-        return []
-    return [
-        line.lstrip("-* ").strip()
-        for line in match.group("body").splitlines()
-        if line.strip().startswith(("-", "*"))
-    ]
-
-
 class PolyMentorPipeline:
     """
     Groq-backed coding mentor.
@@ -148,7 +130,7 @@ class PolyMentorPipeline:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
-        self._client = Groq(api_key=self.api_key) if self.api_key else None
+        self._client = AsyncGroq(api_key=self.api_key) if self.api_key else None
 
     @classmethod
     def from_groq(
@@ -163,7 +145,7 @@ class PolyMentorPipeline:
         """Compatibility constructor for old checkpoint-based callers."""
         return cls.from_groq()
 
-    def chat(
+    async def chat(
         self,
         message: str,
         code: str = "",
@@ -194,35 +176,41 @@ class PolyMentorPipeline:
             )
 
         messages = self._build_messages(message, code, language, level_value, history)
-        completion = self._client.chat.completions.create(
+        completion = await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
             max_completion_tokens=self.max_tokens,
+            response_format={"type": "json_object"},
         )
 
-        answer = completion.choices[0].message.content or ""
+        content = completion.choices[0].message.content or "{}"
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            parsed = {"answer": content}
+
         return MentorResponse(
             status="ok",
-            answer=answer,
+            answer=parsed.get("answer", ""),
             language=language,
             level=level_value,
             model=self.model,
-            suspected_bugs=_extract_bullets_after(answer, "Likely bugs"),
-            fixed_code=_extract_code_block(answer),
-            lesson=self._extract_lesson(answer),
-            next_steps=_extract_bullets_after(answer, "Next steps"),
+            suspected_bugs=parsed.get("suspected_bugs", []),
+            fixed_code=parsed.get("fixed_code"),
+            lesson=parsed.get("lesson"),
+            next_steps=parsed.get("next_steps", []),
             elapsed_ms=(time.perf_counter() - started) * 1000,
         )
 
-    def analyze(
+    async def analyze(
         self,
         code: str,
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         question: str = "Review this code, identify likely bugs, teach the concept, and suggest a fix.",
     ) -> MentorResponse:
-        return self.chat(
+        return await self.chat(
             message=question,
             code=code,
             language=language,
@@ -243,10 +231,16 @@ class PolyMentorPipeline:
             "why bugs happen, and guide learners across many programming "
             "languages. Be practical, friendly, and precise. Do not produce a "
             "numeric quality score. Prefer teaching and corrected examples over "
-            "judgement. When code is provided, structure your answer with these "
-            "sections when useful: Likely bugs, Explanation, Fixed code, Lesson, "
-            "Next steps. Ask a clarifying question if the task is ambiguous.\n\n"
-            f"Level behavior: {LEVEL_GUIDANCE[level]}"
+            "judgement. Ask a clarifying question if the task is ambiguous.\n\n"
+            f"Level behavior: {LEVEL_GUIDANCE[level]}\n\n"
+            "You MUST output valid JSON only, using this exact schema:\n"
+            "{\n"
+            '  "answer": "Your detailed explanation or response.",\n'
+            '  "suspected_bugs": ["bug 1", "bug 2"],\n'
+            '  "fixed_code": "The corrected code block (if any)",\n'
+            '  "lesson": "The main takeaway lesson",\n'
+            '  "next_steps": ["step 1", "step 2"]\n'
+            "}"
         )
 
         user = (
@@ -266,14 +260,3 @@ class PolyMentorPipeline:
                     messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": user})
         return messages
-
-    @staticmethod
-    def _extract_lesson(answer: str) -> Optional[str]:
-        match = re.search(
-            r"Lesson\s*:?\s*(?P<body>.*?)(?:\n\s*(?:Next steps|Likely bugs|Fixed code)\s*:|$)",
-            answer,
-            re.IGNORECASE | re.DOTALL,
-        )
-        if match:
-            return match.group("body").strip()
-        return None
