@@ -12,12 +12,16 @@ A comprehensive AI-powered coding mentor that:
 from __future__ import annotations
 
 import time
+import os
 from typing import Literal, Optional
 from dataclasses import asdict
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer, ErrorSeverity, ErrorCategory
 from src.learning.concept_guide import CONCEPT_LIBRARY, get_concept_explanation, get_learning_path
@@ -38,10 +42,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",") if origin.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Initialize core systems
 hint_system = HintSystem()
@@ -55,7 +63,7 @@ pipeline = PolyMentorPipeline()
 
 class ChatRequest(BaseModel):
     """Request for chatbot interaction"""
-    message: str = Field(..., description="User message or question")
+    message: str = Field(..., max_length=2000, description="User message or question")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
@@ -78,13 +86,13 @@ class ChatResponse(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     """Request for code analysis"""
-    code: str = Field(..., description="Code to analyze")
-    language: str = Field(default="python", description="Programming language")
+    code: str = Field(..., max_length=10000, description="Code to analyze")
+    language: str = Field(default="python", max_length=50, description="Programming language")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
     )
-    num_hints: int = Field(default=3, description="Number of hints to generate")
+    num_hints: int = Field(default=3, ge=1, le=10, description="Number of hints to generate")
 
 
 class AnalyzeResponse(BaseModel):
@@ -633,7 +641,8 @@ def explain_code(request: AnalyzeRequest):
 # ============================================================================
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+@limiter.limit("10/minute")
+async def chat(request: Request, payload: ChatRequest):
     """
     Chat interface with PolyMentor AI tutor.
     
@@ -644,23 +653,31 @@ def chat(request: ChatRequest):
     - Generating fixed code
     - Adaptive learning guidance
     """
-    response = pipeline.chat(
-        message=request.message,
-        level=request.level,
-    )
+    try:
+        response = await pipeline.chat(
+            message=payload.message,
+            level=payload.level,
+        )
+        
+        if response.status == "missing_groq_api_key":
+            raise HTTPException(status_code=500, detail="Missing Groq API Key")
     
-    return {
-        "status": response.status,
-        "answer": response.answer,
-        "language": response.language,
-        "level": response.level,
-        "model": response.model,
-        "suspected_bugs": response.suspected_bugs,
-        "fixed_code": response.fixed_code,
-        "lesson": response.lesson,
-        "next_steps": response.next_steps,
-        "elapsed_ms": response.elapsed_ms,
-    }
+        return {
+            "status": response.status,
+            "answer": response.answer,
+            "language": response.language,
+            "level": response.level,
+            "model": response.model,
+            "suspected_bugs": response.suspected_bugs,
+            "fixed_code": response.fixed_code,
+            "lesson": response.lesson,
+            "next_steps": response.next_steps,
+            "elapsed_ms": response.elapsed_ms,
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/learn/hints/{error_type}", response_model=HintsResponse)
