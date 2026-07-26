@@ -63,7 +63,7 @@ pipeline = PolyMentorPipeline()
 
 class ChatRequest(BaseModel):
     """Request for chatbot interaction"""
-    message: str = Field(..., description="User message or question")
+    message: str = Field(..., max_length=2000, description="User message or question")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
@@ -86,13 +86,13 @@ class ChatResponse(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     """Request for code analysis"""
-    code: str = Field(..., description="Code to analyze")
-    language: str = Field(default="python", description="Programming language")
+    code: str = Field(..., max_length=10000, description="Code to analyze")
+    language: str = Field(default="python", max_length=50, description="Programming language")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
     )
-    num_hints: int = Field(default=3, description="Number of hints to generate")
+    num_hints: int = Field(default=3, ge=1, le=10, description="Number of hints to generate")
 
 
 class AnalyzeResponse(BaseModel):
