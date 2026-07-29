@@ -153,8 +153,8 @@ python-dotenv==1.2.2
 python-json-logger==4.1.0
 python-multipart==0.0.26
 pytokens==0.4.1
-pywin32==311
-pywinpty==3.0.3
+pywin32==311; sys_platform == 'win32'
+pywinpty==3.0.3; sys_platform == 'win32'
 PyYAML==6.0.3
 pyzmq==27.1.0
 referencing==0.37.0
@@ -218,8 +218,8 @@ websocket-client==1.9.0
 websockets==16.0
 Werkzeug==3.1.8
 widgetsnbextension==4.0.15
-win32_setctime==1.2.0
-windows-curses==2.4.2a2
+win32_setctime==1.2.0; sys_platform == 'win32'
+windows-curses==2.4.2a2; sys_platform == 'win32'
 xxhash==3.6.0
 yarl==1.23.0
 groq>=1.4.0
