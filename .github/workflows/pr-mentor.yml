@@ -38,7 +38,7 @@ jobs:
         run: python scripts/analyze_pr.py pr_diff.txt
         
       - name: Post PR Comment
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr comment ${{ github.event.pull_request.number }} -F pr_comment.md
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: polymentor-review
+          path: pr_comment.md
