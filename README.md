@@ -249,10 +249,15 @@ prompts) against the API key you already have.
 
 | Workflow | Schedule | Purpose |
 | --- | --- | --- |
+| `pytest.yml` | On PR, push to `main`, manual | Run unit tests; on PR failure, Groq fail-triage sticky comment |
 | `polymentor-daily.yml` | Daily 06:00 UTC | Smoke-test deployed `/health` and `/chat` |
 | `mongodb-prompts-pipeline.yml` | Hourly (manual dispatch too) | Export MongoDB prompts → artifact `mongodb_prompts.json` |
+| `pr-mentor.yml` | On PR open/sync | Groq PR review sticky comment |
 
-Add repository secret **`MONGODB_URI`** for the export workflow.
+Add repository secrets:
+
+- **`MONGODB_URI`** — required for the export workflow
+- **`GROQ_API_KEY`** — required for PR review and pytest fail-triage comments
 
 ## Environment variables
 
