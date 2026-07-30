@@ -313,8 +313,15 @@ See the **Vision** page on the guide site for the full roadmap.
 ```bash
 python -m py_compile src/api/app.py src/inference/pipeline.py src/inference/tutor_mode.py
 python -m pytest tests/ -q
+python scripts/eval_grounded_vs_blind.py
+python scripts/eval_grounded_vs_blind.py --with-groq   # needs GROQ_API_KEY
 npm --prefix website run build
 ```
+
+`eval_grounded_vs_blind.py` measures analyzer hit-rate on
+`data/eval/grounded_chat_snippets.json` (must be ≥80%). With `--with-groq` it
+also compares grounded (analyzer findings packed into the prompt) vs blind Groq
+keyword coverage to prove grounding improves mentoring productivity.
 
 ## Deployment
 

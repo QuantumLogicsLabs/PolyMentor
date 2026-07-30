@@ -21,8 +21,14 @@ class ErrorClassifier:
     def __init__(self, error_types_path: str = "data/labels/error_types.json"):
         with open(error_types_path, "r") as f:
             self.error_types = json.load(f)
-        # Reverse map: index → name
-        self.idx_to_label = {v: k for k, v in self.error_types.items()}
+        # Support label→int maps and label→[subtypes] maps from error_types.json
+        sample = next(iter(self.error_types.values()), None)
+        if isinstance(sample, list):
+            self.idx_to_label = {
+                i: label for i, label in enumerate(self.error_types.keys())
+            }
+        else:
+            self.idx_to_label = {v: k for k, v in self.error_types.items()}
 
     def decode(self, binary_vector: list) -> list:
         """Convert a binary prediction vector to a list of error label strings."""
