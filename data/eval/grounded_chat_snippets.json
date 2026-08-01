@@ -1,0 +1,162 @@
+[
+  {
+    "id": "py-wildcard-import",
+    "language": "python",
+    "code": "from os import *\nprint(getcwd())\n",
+    "question": "What is wrong with this import?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["wildcard", "import"]
+  },
+  {
+    "id": "py-bare-except",
+    "language": "python",
+    "code": "try:\n    x = int(input())\nexcept:\n    pass\n",
+    "question": "Why is this except clause a problem?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["except", "bare"]
+  },
+  {
+    "id": "py-mutable-default",
+    "language": "python",
+    "code": "def append_item(item, items=[]):\n    items.append(item)\n    return items\n",
+    "question": "What bug can this function cause?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["mutable", "default"]
+  },
+  {
+    "id": "py-while-true-no-break",
+    "language": "python",
+    "code": "while True:\n    print(\"loop\")\n",
+    "question": "What is wrong with this loop?",
+    "expected_categories": ["logical_error"],
+    "expected_keywords": ["while", "break"]
+  },
+  {
+    "id": "py-global-var",
+    "language": "python",
+    "code": "def set_x(v):\n    global x\n    x = v\n",
+    "question": "Why avoid globals here?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["global"]
+  },
+  {
+    "id": "py-compare-true",
+    "language": "python",
+    "code": "ready = True\nif ready == True:\n    print(\"go\")\n",
+    "question": "How should this condition be written?",
+    "expected_categories": ["style_issue"],
+    "expected_keywords": ["true", "comparison"]
+  },
+  {
+    "id": "py-division-no-zero-check",
+    "language": "python",
+    "code": "def ratio(a, b):\n    return a / b\n",
+    "question": "What edge case is missing?",
+    "expected_categories": ["boundary_error"],
+    "expected_keywords": ["division", "zero"]
+  },
+  {
+    "id": "py-range-off-by-one",
+    "language": "python",
+    "code": "n = 5\nfor i in range(n + 1):\n    print(i)\n",
+    "question": "Is there an off-by-one risk?",
+    "expected_categories": ["boundary_error"],
+    "expected_keywords": ["off-by-one", "range"]
+  },
+  {
+    "id": "py-assign-vs-eq",
+    "language": "python",
+    "code": "for i in range(10):\n    if i = 5:\n        break\n",
+    "question": "Why does this fail to run?",
+    "expected_categories": ["syntax_error"],
+    "expected_keywords": ["syntax", "=="]
+  },
+  {
+    "id": "py-missing-colon",
+    "language": "python",
+    "code": "def greet(name)\n    print(name)\n",
+    "question": "What syntax issue is here?",
+    "expected_categories": ["syntax_error"],
+    "expected_keywords": ["syntax"]
+  },
+  {
+    "id": "py-long-function",
+    "language": "python",
+    "code": "def process():\n    a = 1\n    b = 2\n    c = 3\n    d = 4\n    e = 5\n    f = 6\n    g = 7\n    h = 8\n    i = 9\n    j = 10\n    k = 11\n    m = 12\n    n = 13\n    o = 14\n    p = 15\n    q = 16\n    r = 17\n    s = 18\n    t = 19\n    return a + t\n",
+    "question": "What maintainability issue exists?",
+    "expected_categories": ["complexity_issue", "best_practice_violation"],
+    "expected_keywords": ["lines", "long", "docstring"]
+  },
+  {
+    "id": "py-many-params",
+    "language": "python",
+    "code": "def pack(a, b, c, d, e, f, g, h):\n    \"\"\"Pack values.\"\"\"\n    return (a, b, c, d, e, f, g, h)\n",
+    "question": "Is this function signature a smell?",
+    "expected_categories": ["complexity_issue"],
+    "expected_keywords": ["parameters"]
+  },
+  {
+    "id": "js-assign-in-if",
+    "language": "javascript",
+    "code": "let x = 0;\nif (x = 5) {\n  console.log(x);\n}\n",
+    "question": "What mistake is in the if condition?",
+    "expected_categories": ["logical_error"],
+    "expected_keywords": ["assignment", "comparison"]
+  },
+  {
+    "id": "js-eval",
+    "language": "javascript",
+    "code": "function run(userInput) {\n  return eval(userInput);\n}\n",
+    "question": "Why is this unsafe?",
+    "expected_categories": ["security_issue"],
+    "expected_keywords": ["eval", "security"]
+  },
+  {
+    "id": "js-var-keyword",
+    "language": "javascript",
+    "code": "var count = 0;\ncount += 1;\n",
+    "question": "What declaration style should change?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["var"]
+  },
+  {
+    "id": "js-while-true",
+    "language": "javascript",
+    "code": "while(true) {\n  doWork();\n}\n",
+    "question": "What risk does this loop have?",
+    "expected_categories": ["logical_error"],
+    "expected_keywords": ["while", "true"]
+  },
+  {
+    "id": "cpp-gets",
+    "language": "cpp",
+    "code": "#include <stdio.h>\nint main() {\n  char buf[32];\n  gets(buf);\n  return 0;\n}\n",
+    "question": "What security issue is here?",
+    "expected_categories": ["security_issue"],
+    "expected_keywords": ["gets", "unsafe"]
+  },
+  {
+    "id": "cpp-new-no-delete",
+    "language": "cpp",
+    "code": "void leak() {\n  int* p = new int(42);\n  (void)p;\n}\n",
+    "question": "What resource problem exists?",
+    "expected_categories": ["resource_leak"],
+    "expected_keywords": ["new", "delete", "leak"]
+  },
+  {
+    "id": "java-raw-arraylist",
+    "language": "java",
+    "code": "import java.util.ArrayList;\nclass Demo {\n  void go() {\n    ArrayList list = new ArrayList();\n    list.add(\"hi\");\n  }\n}\n",
+    "question": "What typing issue is here?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["raw", "generics", "ArrayList"]
+  },
+  {
+    "id": "java-raw-list-alt",
+    "language": "java",
+    "code": "import java.util.ArrayList;\nclass Box {\n  ArrayList values = new ArrayList();\n}\n",
+    "question": "How should this list be declared?",
+    "expected_categories": ["best_practice_violation"],
+    "expected_keywords": ["raw", "type"]
+  }
+]
