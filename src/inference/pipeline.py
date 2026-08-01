@@ -24,6 +24,8 @@ import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
 
+from src.inference.prompt_pack import PromptPack
+
 load_dotenv()
 
 SUPPORTED_LANGUAGES = {
@@ -50,25 +52,6 @@ LearnerLevel = Literal["beginner", "intermediate", "advanced"]
 DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_LEVEL: LearnerLevel = "beginner"
 DEFAULT_LANGUAGE = "python"
-
-LEVEL_GUIDANCE: dict[LearnerLevel, str] = {
-    "beginner": (
-        "Explain in beginner-friendly language. Use short sentences, define any "
-        "technical term before using it, and prefer tiny examples. Do not jump "
-        "to advanced patterns, clever shortcuts, complex architecture, or "
-        "performance-heavy solutions unless the user explicitly asks for them."
-    ),
-    "intermediate": (
-        "Assume the learner knows basic syntax. Explain the reasoning and tradeoffs, "
-        "but keep the solution practical and avoid advanced architecture or clever "
-        "optimizations unless they are necessary for the question."
-    ),
-    "advanced": (
-        "You may use precise technical language and discuss deeper tradeoffs, but "
-        "still keep the answer focused on the user's question and avoid unnecessary "
-        "over-engineering."
-    ),
-}
 
 
 @dataclass
@@ -152,6 +135,7 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
+        analyzer_context: str = "",
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
@@ -175,7 +159,15 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        messages = self._build_messages(message, code, language, level_value, history)
+        messages = PromptPack.build_messages(
+            message=message,
+            code=code,
+            language=language,
+            level=level_value,
+            history=history,
+            analyzer_context=analyzer_context
+        )
+        
         completion = await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -216,47 +208,3 @@ class PolyMentorPipeline:
             language=language,
             level=level,
         )
-
-    def _build_messages(
-        self,
-        message: str,
-        code: str,
-        language: str,
-        level: LearnerLevel,
-        history: Optional[Iterable[ChatMessage | dict[str, str]]],
-    ) -> list[dict[str, str]]:
-        system = (
-            "You are PolyMentor, a coding tutor chatbot. Your job is to teach "
-            "programming, help users write code, identify likely bugs, explain "
-            "why bugs happen, and guide learners across many programming "
-            "languages. Be practical, friendly, and precise. Do not produce a "
-            "numeric quality score. Prefer teaching and corrected examples over "
-            "judgement. Ask a clarifying question if the task is ambiguous.\n\n"
-            f"Level behavior: {LEVEL_GUIDANCE[level]}\n\n"
-            "You MUST output valid JSON only, using this exact schema:\n"
-            "{\n"
-            '  "answer": "Your detailed explanation or response.",\n'
-            '  "suspected_bugs": ["bug 1", "bug 2"],\n'
-            '  "fixed_code": "The corrected code block (if any)",\n'
-            '  "lesson": "The main takeaway lesson",\n'
-            '  "next_steps": ["step 1", "step 2"]\n'
-            "}"
-        )
-
-        user = (
-            f"Learner level: {level}\n"
-            f"Language: {language}\n"
-            f"User request: {message.strip()}\n"
-        )
-        if code.strip():
-            user += f"\nCode:\n```{language}\n{code.strip()}\n```"
-
-        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
-        if history:
-            for item in history:
-                role = item.role if isinstance(item, ChatMessage) else item.get("role", "user")
-                content = item.content if isinstance(item, ChatMessage) else item.get("content", "")
-                if role in {"user", "assistant"} and content:
-                    messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": user})
-        return messages

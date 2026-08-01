@@ -28,6 +28,7 @@ from src.learning.concept_guide import CONCEPT_LIBRARY, get_concept_explanation,
 from src.reasoning_engine.hint_system import HintSystem
 from src.reasoning_engine.feedback_scorer import FeedbackScorer
 from src.inference.pipeline import PolyMentorPipeline
+from src.inference.context_builder import ContextBuilder
 
 
 # ============================================================================
@@ -68,6 +69,9 @@ class ChatRequest(BaseModel):
         default="beginner",
         description="Learner skill level"
     )
+    code: Optional[str] = Field(default=None, max_length=10000, description="Optional code context")
+    language: Optional[str] = Field(default=None, max_length=50, description="Optional programming language")
+    history: Optional[list] = Field(default=None, description="Optional chat history")
 
 
 class ChatResponse(BaseModel):
@@ -654,9 +658,19 @@ async def chat(request: Request, payload: ChatRequest):
     - Adaptive learning guidance
     """
     try:
+        # Build analyzer context if code is provided
+        analyzer_context = ""
+        if payload.code:
+            language = payload.language or "python"
+            analyzer_context = ContextBuilder.build_analyzer_context(payload.code, language)
+
         response = await pipeline.chat(
             message=payload.message,
             level=payload.level,
+            code=payload.code or "",
+            language=payload.language or "python",
+            history=payload.history,
+            analyzer_context=analyzer_context
         )
         
         if response.status == "missing_groq_api_key":
