@@ -102,4 +102,34 @@ class ContextBuilder:
 
         return head_text + marker + tail_text, True
 
+    @classmethod
+    def format_static_analysis(cls, analysis_result: Optional[dict[str, Any]], max_chars: int = 800) -> str:
+        """
+        Synthesizes deterministic static analyzer findings into a compact summary for LLM grounding.
+        Strictly limits output size to preserve token budget.
+        """
+        if not analysis_result or not analysis_result.get("supported", True):
+            return ""
+
+        total = analysis_result.get("total_errors", 0)
+        errors = analysis_result.get("errors", [])
+        if total == 0 and not errors:
+            return "Static Analysis Grounding: Clean code detected (0 deterministic errors found)."
+
+        lines = [f"Static Analysis Grounding: Detected {total} potential issue(s):"]
+        for err in errors[:5]:  # Limit to top 5 most notable issues
+            line_num = f"[Line {err['line']}] " if err.get("line") else ""
+            sev = err.get("severity", "medium").upper()
+            msg = err.get("message", "Issue detected")
+            lines.append(f" - {sev} {line_num}{msg}")
+
+        if len(errors) > 5:
+            lines.append(f" - ... and {len(errors) - 5} more issue(s). Focus on resolving top errors.")
+
+        summary = "\n".join(lines)
+        if len(summary) > max_chars:
+            summary = summary[: max_chars - 20] + "... [Truncated]"
+        return summary
+
+
 
