@@ -54,9 +54,14 @@ class RepoContext:
 
     file_path: Optional[str] = None
     workspace_name: Optional[str] = None
+    root_dir: Optional[str] = None
     dependencies: list[str] = field(default_factory=list)
     git_status: Optional[str] = None
     related_signatures: list[str] = field(default_factory=list)
+    related_files: list[str] = field(default_factory=list)
+    classes: list[str] = field(default_factory=list)
+    functions: list[str] = field(default_factory=list)
+
 
 
 @dataclass
@@ -164,6 +169,21 @@ class ContextBuilder:
                 deps_str += "..."
             sections.append(f"Key Dependencies: {deps_str}")
 
+        if repo.root_dir and not repo.workspace_name:
+            sections.append(f"Workspace Root: {repo.root_dir}")
+
+        if repo.classes:
+            classes_str = ", ".join(repo.classes[:8])
+            sections.append(f"AST Classes: {classes_str}")
+
+        if repo.functions:
+            funcs_str = ", ".join(repo.functions[:10])
+            sections.append(f"AST Functions/Methods: {funcs_str}")
+
+        if repo.related_files:
+            rel_str = ", ".join(repo.related_files[:6])
+            sections.append(f"Related Workspace Files: {rel_str}")
+
         if repo.git_status:
             sections.append(f"Git Status: {repo.git_status}")
 
@@ -172,6 +192,7 @@ class ContextBuilder:
             sections.append(f"Related Signatures: {sigs_str}")
 
         return "\n".join(sections)
+
 
     @classmethod
     def pack_history(

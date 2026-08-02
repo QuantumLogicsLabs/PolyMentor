@@ -74,6 +74,9 @@ class ChatRequest(BaseModel):
         default_factory=list,
         description="Prior conversational history turns [{role: ..., content: ...}]"
     )
+    repo_root: Optional[str] = Field(default=None, description="Repository workspace root directory path")
+    file_path: Optional[str] = Field(default=None, description="Relative path of the analyzed file in the repository")
+
 
 
 
@@ -670,9 +673,12 @@ async def chat(request: Request, payload: ChatRequest):
             language=payload.language,
             level=payload.level,
             history=payload.history,
+            repo_root=payload.repo_root,
+            file_path=payload.file_path,
         )
         
         if response.status == "missing_groq_api_key":
+
             raise HTTPException(status_code=500, detail="Missing Groq API Key")
     
         return {
