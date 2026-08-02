@@ -219,6 +219,96 @@ class ContextBuilder:
 
         return packed_turns, accumulated_tokens, dropped_turns
 
+    def build_prompt(
+        self,
+        message: str,
+        code: str = "",
+        language: str = "python",
+        level: LearnerLevel = "beginner",
+        history: Optional[Iterable[Any]] = None,
+        analysis_result: Optional[dict[str, Any]] = None,
+        repo: Optional[RepoContext] = None,
+        require_json: bool = True,
+    ) -> PackedPrompt:
+        """
+        Synthesizes all context layers into a modular, token-bounded messages list.
+        Prioritizes static findings and user instructions over old dialogue turns.
+        """
+        guidance = LEVEL_GUIDANCE.get(level, LEVEL_GUIDANCE["beginner"])
+
+        system_text = (
+            "You are PolyMentor, an AI coding tutor and senior software engineer. "
+            "Your goal is to teach programming concepts, review code, identify likely bugs, "
+            "and explain root causes with high accuracy and low hallucination.\n\n"
+            f"Pedagogic Level Guidance ({level.upper()}): {guidance}"
+        )
+
+        static_summary = self.format_static_analysis(analysis_result)
+        if static_summary:
+            system_text += (
+                "\n\n--- DETERMINISTIC STATIC ANALYSIS FINDINGS ---\n"
+                "Ground your explanations in these verified analyzer results:\n"
+                f"{static_summary}"
+            )
+
+        repo_summary = self.format_repo_context(repo)
+        if repo_summary:
+            system_text += f"\n\n--- REPOSITORY CONTEXT ---\n{repo_summary}"
+
+        if require_json:
+            system_text += (
+                "\n\nYou MUST output valid JSON only, strictly conforming to this schema:\n"
+                "{\n"
+                '  "answer": "Your comprehensive explanations and pedagogical response.",\n'
+                '  "suspected_bugs": ["bug 1", "bug 2"],\n'
+                '  "fixed_code": "The complete corrected code block (if any)",\n'
+                '  "lesson": "The core engineering lesson or takeaway",\n'
+                '  "next_steps": ["step 1", "step 2"]\n'
+                "}"
+            )
+
+        system_message = {"role": "system", "content": system_text}
+        sys_tokens = self.estimate_tokens(system_text) + 4
+
+        # Reserve budget for current message, system prompt, and overhead
+        user_req_str = (
+            f"Learner level: {level}\n"
+            f"Language: {language}\n"
+            f"User Request: {message.strip()}"
+        )
+        base_user_tokens = self.estimate_tokens(user_req_str) + 10
+        remaining_budget = max(200, self.max_tokens - sys_tokens - base_user_tokens)
+
+        # Split remaining budget between history (35%) and code block (65%)
+        hist_budget = int(remaining_budget * 0.35)
+        code_budget = int(remaining_budget * 0.65)
+
+        packed_turns, hist_tokens, dropped_turns = self.pack_history(history, max_tokens=hist_budget)
+
+        truncated_code = False
+        if code.strip():
+            # If history didn't use its full budget, roll it over to code
+            unused_hist = max(0, hist_budget - hist_tokens)
+            processed_code, truncated_code = self.truncate_code_to_budget(
+                code.strip(), token_budget=(code_budget + unused_hist)
+            )
+            user_req_str += f"\n\nCode:\n```{language}\n{processed_code}\n```"
+
+        user_message = {"role": "user", "content": user_req_str}
+        user_tokens = self.estimate_tokens(user_req_str) + 4
+
+        messages = [system_message] + packed_turns + [user_message]
+        total_tokens = sys_tokens + hist_tokens + user_tokens
+
+        return PackedPrompt(
+            messages=messages,
+            estimated_tokens=total_tokens,
+            truncated_code=truncated_code,
+            dropped_turns=dropped_turns,
+            grounding_enabled=bool(static_summary),
+        )
+
+
 
 
 
