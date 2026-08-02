@@ -57,3 +57,24 @@ class PackedPrompt:
     truncated_code: bool = False
     dropped_turns: int = 0
     grounding_enabled: bool = False
+
+
+class ContextBuilder:
+    """
+    Constructs optimized prompt payloads for PolyMentor chat and analysis workflows.
+    Handles token budget enforcement and deterministic context merging.
+    """
+
+    def __init__(self, max_tokens: int = DEFAULT_TOKEN_BUDGET) -> None:
+        self.max_tokens = max_tokens
+
+    @staticmethod
+    def estimate_tokens(text: str) -> int:
+        """
+        Estimates the token count of a given string using standard char-to-token ratio.
+        Provides fast, deterministic approximation without requiring network or heavy tokenizers.
+        """
+        if not text:
+            return 0
+        return max(1, math.ceil(len(text) / ESTIMATED_CHARS_PER_TOKEN))
+
