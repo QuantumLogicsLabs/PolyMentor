@@ -64,10 +64,17 @@ pipeline = PolyMentorPipeline()
 class ChatRequest(BaseModel):
     """Request for chatbot interaction"""
     message: str = Field(..., max_length=2000, description="User message or question")
+    code: Optional[str] = Field(default=None, max_length=15000, description="Optional code snippet for review or discussion")
+    language: str = Field(default="python", max_length=50, description="Programming language")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
     )
+    history: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Prior conversational history turns [{role: ..., content: ...}]"
+    )
+
 
 
 class ChatResponse(BaseModel):
