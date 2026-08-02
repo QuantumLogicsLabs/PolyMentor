@@ -666,7 +666,10 @@ async def chat(request: Request, payload: ChatRequest):
     try:
         response = await pipeline.chat(
             message=payload.message,
+            code=payload.code or "",
+            language=payload.language,
             level=payload.level,
+            history=payload.history,
         )
         
         if response.status == "missing_groq_api_key":
@@ -683,7 +686,10 @@ async def chat(request: Request, payload: ChatRequest):
             "lesson": response.lesson,
             "next_steps": response.next_steps,
             "elapsed_ms": response.elapsed_ms,
+            "grounded": response.grounded,
+            "token_utilization_pct": response.token_utilization_pct,
         }
+
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
