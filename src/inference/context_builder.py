@@ -162,6 +162,64 @@ class ContextBuilder:
 
         return "\n".join(sections)
 
+    @classmethod
+    def pack_history(
+        cls,
+        history: Optional[Iterable[Any]],
+        max_tokens: int = 800,
+        max_turns: int = 10,
+    ) -> tuple[list[dict[str, str]], int, int]:
+        """
+        Packs conversational turns from newest to oldest within token budget.
+        Returns (packed_messages, used_tokens, dropped_turns_count).
+        """
+        if not history:
+            return [], 0, 0
+
+        raw_turns: list[dict[str, str]] = []
+        for item in history:
+            if hasattr(item, "role") and hasattr(item, "content"):
+                role = getattr(item, "role")
+                content = getattr(item, "content")
+            elif isinstance(item, dict):
+                role = item.get("role", "user")
+                content = item.get("content", "")
+            else:
+                continue
+
+            if role in {"user", "assistant"} and content:
+                raw_turns.append({"role": role, "content": str(content)})
+
+        if len(raw_turns) > max_turns:
+            dropped_turns = len(raw_turns) - max_turns
+            candidate_turns = raw_turns[-max_turns:]
+        else:
+            dropped_turns = 0
+            candidate_turns = raw_turns
+
+        packed_turns: list[dict[str, str]] = []
+        accumulated_tokens = 0
+
+        # Traverse backwards from newest to oldest to preserve most recent context
+        for turn in reversed(candidate_turns):
+            turn_tokens = cls.estimate_tokens(turn["content"]) + 4  # Overhead per message
+            if accumulated_tokens + turn_tokens > max_tokens and packed_turns:
+                dropped_turns += 1
+                continue
+            elif accumulated_tokens + turn_tokens <= max_tokens:
+                packed_turns.insert(0, turn)
+                accumulated_tokens += turn_tokens
+            else:
+                # Even a single turn exceeds budget, truncate it to fit
+                avail_tokens = max(20, max_tokens - accumulated_tokens - 10)
+                truncated_text, _ = cls.truncate_code_to_budget(turn["content"], token_budget=avail_tokens)
+                packed_turns.insert(0, {"role": turn["role"], "content": truncated_text})
+                accumulated_tokens += avail_tokens
+                break
+
+        return packed_turns, accumulated_tokens, dropped_turns
+
+
 
 
 
