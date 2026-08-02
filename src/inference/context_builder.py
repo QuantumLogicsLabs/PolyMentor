@@ -12,7 +12,18 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Literal, Optional
 
+__all__ = [
+    "LearnerLevel",
+    "DEFAULT_TOKEN_BUDGET",
+    "ESTIMATED_CHARS_PER_TOKEN",
+    "LEVEL_GUIDANCE",
+    "RepoContext",
+    "PackedPrompt",
+    "ContextBuilder",
+]
+
 LearnerLevel = Literal["beginner", "intermediate", "advanced"]
+
 
 DEFAULT_TOKEN_BUDGET = 3500  # Conservative budget for fast free tier prompt packing
 ESTIMATED_CHARS_PER_TOKEN = 3.8
