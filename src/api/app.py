@@ -89,6 +89,9 @@ class ChatResponse(BaseModel):
     lesson: Optional[str] = None
     next_steps: list = Field(default_factory=list)
     elapsed_ms: float
+    grounded: bool = Field(default=False, description="Whether static analysis grounding was active")
+    token_utilization_pct: float = Field(default=0.0, description="Percentage of token prompt budget consumed")
+
 
 
 class AnalyzeRequest(BaseModel):
