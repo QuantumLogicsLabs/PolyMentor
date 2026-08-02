@@ -157,6 +157,8 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
+        analysis_result: Optional[dict] = None,
+        repo: Optional[RepoContext] = None,
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
@@ -180,7 +182,15 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        messages = self._build_messages(message, code, language, level_value, history)
+        messages = self._build_messages(
+            message=message,
+            code=code,
+            language=language,
+            level=level_value,
+            history=history,
+            analysis_result=analysis_result,
+            repo=repo,
+        )
         completion = await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -214,12 +224,16 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         question: str = "Review this code, identify likely bugs, teach the concept, and suggest a fix.",
+        analysis_result: Optional[dict] = None,
+        repo: Optional[RepoContext] = None,
     ) -> MentorResponse:
         return await self.chat(
             message=question,
             code=code,
             language=language,
             level=level,
+            analysis_result=analysis_result,
+            repo=repo,
         )
 
     def _build_messages(
@@ -229,39 +243,18 @@ class PolyMentorPipeline:
         language: str,
         level: LearnerLevel,
         history: Optional[Iterable[ChatMessage | dict[str, str]]],
+        analysis_result: Optional[dict] = None,
+        repo: Optional[RepoContext] = None,
     ) -> list[dict[str, str]]:
-        system = (
-            "You are PolyMentor, a coding tutor chatbot. Your job is to teach "
-            "programming, help users write code, identify likely bugs, explain "
-            "why bugs happen, and guide learners across many programming "
-            "languages. Be practical, friendly, and precise. Do not produce a "
-            "numeric quality score. Prefer teaching and corrected examples over "
-            "judgement. Ask a clarifying question if the task is ambiguous.\n\n"
-            f"Level behavior: {LEVEL_GUIDANCE[level]}\n\n"
-            "You MUST output valid JSON only, using this exact schema:\n"
-            "{\n"
-            '  "answer": "Your detailed explanation or response.",\n'
-            '  "suspected_bugs": ["bug 1", "bug 2"],\n'
-            '  "fixed_code": "The corrected code block (if any)",\n'
-            '  "lesson": "The main takeaway lesson",\n'
-            '  "next_steps": ["step 1", "step 2"]\n'
-            "}"
+        packed = self.context_builder.build_prompt(
+            message=message,
+            code=code,
+            language=language,
+            level=level,
+            history=history,
+            analysis_result=analysis_result,
+            repo=repo,
+            require_json=True,
         )
+        return packed.messages
 
-        user = (
-            f"Learner level: {level}\n"
-            f"Language: {language}\n"
-            f"User request: {message.strip()}\n"
-        )
-        if code.strip():
-            user += f"\nCode:\n```{language}\n{code.strip()}\n```"
-
-        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
-        if history:
-            for item in history:
-                role = item.role if isinstance(item, ChatMessage) else item.get("role", "user")
-                content = item.content if isinstance(item, ChatMessage) else item.get("content", "")
-                if role in {"user", "assistant"} and content:
-                    messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": user})
-        return messages
