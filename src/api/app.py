@@ -64,10 +64,17 @@ pipeline = PolyMentorPipeline()
 class ChatRequest(BaseModel):
     """Request for chatbot interaction"""
     message: str = Field(..., max_length=2000, description="User message or question")
+    code: Optional[str] = Field(default=None, max_length=15000, description="Optional code snippet for review or discussion")
+    language: str = Field(default="python", max_length=50, description="Programming language")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
     )
+    history: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Prior conversational history turns [{role: ..., content: ...}]"
+    )
+
 
 
 class ChatResponse(BaseModel):
@@ -82,6 +89,9 @@ class ChatResponse(BaseModel):
     lesson: Optional[str] = None
     next_steps: list = Field(default_factory=list)
     elapsed_ms: float
+    grounded: bool = Field(default=False, description="Whether static analysis grounding was active")
+    token_utilization_pct: float = Field(default=0.0, description="Percentage of token prompt budget consumed")
+
 
 
 class AnalyzeRequest(BaseModel):
@@ -656,7 +666,10 @@ async def chat(request: Request, payload: ChatRequest):
     try:
         response = await pipeline.chat(
             message=payload.message,
+            code=payload.code or "",
+            language=payload.language,
             level=payload.level,
+            history=payload.history,
         )
         
         if response.status == "missing_groq_api_key":
@@ -673,7 +686,10 @@ async def chat(request: Request, payload: ChatRequest):
             "lesson": response.lesson,
             "next_steps": response.next_steps,
             "elapsed_ms": response.elapsed_ms,
+            "grounded": response.grounded,
+            "token_utilization_pct": response.token_utilization_pct,
         }
+
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
