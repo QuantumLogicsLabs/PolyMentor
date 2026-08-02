@@ -191,3 +191,63 @@ class RepoParser:
         
         return results
 
+    def scan_workspace(self, root_dir: str | Path, max_files: int = 100) -> list[str]:
+        """
+        Scan a repository directory tree for code source files, ignoring build artifacts and virtual envs.
+        Returns relative file paths up to max_files.
+        """
+        root_path = Path(root_dir)
+        if not root_path.exists() or not root_path.is_dir():
+            return []
+
+        ignore_dirs = {".git", ".venv", "venv", "env", "node_modules", "__pycache__", "dist", "build", ".pytest_cache"}
+        valid_exts = {".py", ".js", ".ts", ".jsx", ".tsx", ".cpp", ".cc", ".c", ".h", ".hpp", ".java"}
+        found: list[str] = []
+
+        try:
+            for root, dirs, files in os.walk(root_path):
+                # Filter out ignored directories
+                dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
+                for f in files:
+                    if Path(f).suffix in valid_exts:
+                        full_path = Path(root) / f
+                        try:
+                            rel_path = str(full_path.relative_to(root_path)).replace("\\", "/")
+                            found.append(rel_path)
+                            if len(found) >= max_files:
+                                return sorted(found)
+                        except ValueError:
+                            continue
+        except Exception as e:
+            logger.warning(f"Error scanning workspace {root_dir}: {e}")
+
+        return sorted(found)
+
+    def find_related_files(self, root_dir: str | Path, current_file: str | None, imports: list[str]) -> list[str]:
+        """
+        Identify files in the workspace that correspond to imported modules or header files.
+        """
+        all_files = self.scan_workspace(root_dir)
+        related: list[str] = []
+        curr_norm = str(current_file).replace("\\", "/") if current_file else ""
+
+        for imp in imports:
+            # Extract identifiers or path fragments from import line
+            # e.g., "from src.api.app import app" -> check for "src/api/app.py"
+            parts = re.findall(r"[a-zA-Z0-9_\/\.]+", imp)
+            for part in parts:
+                if len(part) < 2 or part in ("import", "from", "include", "const", "var", "let", "require"):
+                    continue
+                path_guess = part.replace(".", "/")
+                for f in all_files:
+                    if f == curr_norm:
+                        continue
+                    # Match stem or exact relative path
+                    if f.startswith(path_guess) or Path(f).stem == Path(part).stem:
+                        if f not in related and f != curr_norm:
+                            related.append(f)
+                            if len(related) >= 15:
+                                return related
+        return related
+
+
