@@ -78,3 +78,28 @@ class ContextBuilder:
             return 0
         return max(1, math.ceil(len(text) / ESTIMATED_CHARS_PER_TOKEN))
 
+    @classmethod
+    def truncate_code_to_budget(cls, code: str, token_budget: int = 1500) -> tuple[str, bool]:
+        """
+        Intelligently truncates source code if it exceeds the available token budget.
+        Retains both head and tail sections to preserve imports, function headers, and trailing logic.
+        Returns a tuple of (processed_code, was_truncated).
+        """
+        if not code or cls.estimate_tokens(code) <= token_budget:
+            return code, False
+
+        max_chars = int(token_budget * ESTIMATED_CHARS_PER_TOKEN)
+        if max_chars <= 100:
+            return code[:max_chars] + "\n... [Truncated]", True
+
+        head_chars = max_chars // 2 - 50
+        tail_chars = max_chars - head_chars - 100
+        head_text = code[:head_chars]
+        tail_text = code[-tail_chars:] if tail_chars > 0 else ""
+
+        trimmed_lines = code[head_chars:-tail_chars].count("\n") if tail_chars > 0 else code[head_chars:].count("\n")
+        marker = f"\n... [Code middle-truncated for prompt efficiency: ~{trimmed_lines} lines trimmed] ...\n"
+
+        return head_text + marker + tail_text, True
+
+
