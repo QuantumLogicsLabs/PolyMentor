@@ -127,12 +127,15 @@ class PolyMentorPipeline:
         api_key: Optional[str] = None,
         temperature: float = 0.25,
         max_tokens: int = 1800,
+        context_builder: Optional[ContextBuilder] = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
         self._client = AsyncGroq(api_key=self.api_key) if self.api_key else None
+        self.context_builder = context_builder or ContextBuilder()
+
 
     @classmethod
     def from_groq(
