@@ -24,8 +24,10 @@ import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
 from src.inference.context_builder import ContextBuilder, RepoContext, PackedPrompt
+from src.inference.repo_parser import RepoParser
 
 load_dotenv()
+
 
 __all__ = [
     "LearnerLevel",
@@ -144,6 +146,7 @@ class PolyMentorPipeline:
         temperature: float = 0.25,
         max_tokens: int = 1800,
         context_builder: Optional[ContextBuilder] = None,
+        repo_parser: Optional[RepoParser] = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
@@ -151,6 +154,7 @@ class PolyMentorPipeline:
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
         self._client = AsyncGroq(api_key=self.api_key) if self.api_key else None
         self.context_builder = context_builder or ContextBuilder()
+        self.repo_parser = repo_parser or RepoParser()
 
 
     @classmethod
@@ -175,6 +179,8 @@ class PolyMentorPipeline:
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
         analysis_result: Optional[dict] = None,
         repo: Optional[RepoContext] = None,
+        repo_root: Optional[str] = None,
+        file_path: Optional[str] = None,
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
@@ -198,7 +204,16 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
+        if repo is None and (repo_root or file_path or (code and self.repo_parser)):
+            repo = self.repo_parser.extract_repo_context(
+                code=code,
+                language=language,
+                root_dir=repo_root,
+                file_path=file_path,
+            )
+
         packed = self.context_builder.build_prompt(
+
             message=message,
             code=code,
             language=language,
