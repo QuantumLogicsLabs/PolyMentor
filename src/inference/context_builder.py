@@ -215,7 +215,6 @@ class ContextBuilder:
         for turn in reversed(candidate_turns):
             turn_tokens = cls.estimate_tokens(turn["content"]) + 4  # Overhead per message
             if accumulated_tokens + turn_tokens > max_tokens and packed_turns:
-                dropped_turns += 1
                 continue
             elif accumulated_tokens + turn_tokens <= max_tokens:
                 packed_turns.insert(0, turn)
@@ -228,7 +227,9 @@ class ContextBuilder:
                 accumulated_tokens += avail_tokens
                 break
 
+        dropped_turns = len(raw_turns) - len(packed_turns)
         return packed_turns, accumulated_tokens, dropped_turns
+
 
     def build_prompt(
         self,
