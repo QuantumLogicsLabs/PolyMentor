@@ -1,11 +1,11 @@
 """
 src/inference/pipeline.py
 -------------------------
-Public inference entrypoint for PolyMentor.
+Public context-aware inference entrypoint for PolyMentor.
 
-PolyMentor is now a Groq-powered coding tutor chatbot. It teaches programming,
-helps write code, reviews snippets, and explains likely bugs across multiple
-languages. It does not depend on local model checkpoints or quality scoring.
+PolyMentor is an AI coding tutor and mentor powered by Groq and static analysis grounding.
+It seamlessly incorporates multi-turn conversational history, skill level pedagogical adaptation
+(beginner, intermediate, advanced), multi-language normalization, and code token budgeting.
 
 Environment:
     GROQ_API_KEY   Required for Groq responses.
@@ -26,6 +26,17 @@ from groq import AsyncGroq
 from src.inference.context_builder import ContextBuilder, RepoContext, PackedPrompt
 
 load_dotenv()
+
+__all__ = [
+    "LearnerLevel",
+    "ChatMessage",
+    "MentorResponse",
+    "PolyMentorPipeline",
+    "DEFAULT_MODEL",
+    "DEFAULT_LEVEL",
+    "DEFAULT_LANGUAGE",
+]
+
 
 
 SUPPORTED_LANGUAGES = {
