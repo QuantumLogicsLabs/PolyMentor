@@ -57,3 +57,49 @@ async def test_pipeline_chat_context_assembly():
     assert len(messages_passed) == 4  # System, User turn 1, Assistant turn 1, Current User turn
     assert messages_passed[1]["content"] == "Hello! How do I declare a list?"
     assert "my_list.add(1)" in messages_passed[3]["content"]
+
+
+from fastapi.testclient import TestClient
+from src.api.app import app, pipeline as api_pipeline
+
+
+def test_api_chat_context_aware_endpoint(monkeypatch):
+    client = TestClient(app)
+    
+    # Mock pipeline response inside app
+    mock_res = MentorResponse(
+        status="ok",
+        answer="Advanced response with full context.",
+        language="cpp",
+        level="advanced",
+        model="llama-3.3-70b-versatile",
+        suspected_bugs=["memory_leak"],
+        grounded=False,
+        token_utilization_pct=15.5,
+    )
+    
+    async def mock_chat(*args, **kwargs):
+        return mock_res
+        
+    monkeypatch.setattr(api_pipeline, "chat", mock_chat)
+
+    payload = {
+        "message": "Review my dynamic allocation.",
+        "code": "int* p = new int[10];",
+        "language": "cpp",
+        "level": "advanced",
+        "history": [
+            {"role": "user", "content": "How does stack vs heap work in C++?"},
+            {"role": "assistant", "content": "Heap allocations use new/delete, stack uses local variables."}
+        ]
+    }
+    
+    response = client.post("/chat", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["level"] == "advanced"
+    assert data["language"] == "cpp"
+    assert data["token_utilization_pct"] == 15.5
+    assert "memory_leak" in data["suspected_bugs"]
+
