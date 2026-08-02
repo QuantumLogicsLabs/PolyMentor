@@ -23,8 +23,10 @@ from typing import Iterable, Literal, Optional
 import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
+from src.inference.context_builder import ContextBuilder, RepoContext, PackedPrompt
 
 load_dotenv()
+
 
 SUPPORTED_LANGUAGES = {
     "python",
