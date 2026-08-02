@@ -308,6 +308,39 @@ class ContextBuilder:
             grounding_enabled=bool(static_summary),
         )
 
+    @staticmethod
+    def get_default_json_schema() -> dict[str, Any]:
+        """
+        Returns the structured schema expected from Groq inferences.
+        Useful for downstream validation and retry logic.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string"},
+                "suspected_bugs": {"type": "array", "items": {"type": "string"}},
+                "fixed_code": {"type": ["string", "null"]},
+                "lesson": {"type": ["string", "null"]},
+                "next_steps": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["answer", "suspected_bugs", "next_steps"],
+        }
+
+    def inspect_prompt_budget(self, prompt: PackedPrompt) -> dict[str, Any]:
+        """
+        Provides telemetry diagnostics on prompt consumption against configured limits.
+        """
+        return {
+            "budget_limit": self.max_tokens,
+            "estimated_tokens": prompt.estimated_tokens,
+            "utilization_pct": round((prompt.estimated_tokens / max(1, self.max_tokens)) * 100, 1),
+            "truncated_code": prompt.truncated_code,
+            "dropped_turns": prompt.dropped_turns,
+            "grounding_enabled": prompt.grounding_enabled,
+            "message_count": len(prompt.messages),
+        }
+
+
 
 
 
