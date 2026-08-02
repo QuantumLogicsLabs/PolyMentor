@@ -91,6 +91,11 @@ class MentorResponse:
     lesson: Optional[str] = None
     next_steps: list[str] = field(default_factory=list)
     elapsed_ms: float = 0.0
+    grounded: bool = False
+    token_utilization_pct: float = 0.0
+    truncated_code: bool = False
+    dropped_turns: int = 0
+
 
 
 def _normalize_language(language: str | None) -> str:
@@ -182,7 +187,7 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        messages = self._build_messages(
+        packed = self.context_builder.build_prompt(
             message=message,
             code=code,
             language=language,
@@ -190,7 +195,9 @@ class PolyMentorPipeline:
             history=history,
             analysis_result=analysis_result,
             repo=repo,
+            require_json=True,
         )
+        messages = packed.messages
         completion = await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -205,6 +212,7 @@ class PolyMentorPipeline:
         except json.JSONDecodeError:
             parsed = {"answer": content}
 
+        telemetry = self.context_builder.inspect_prompt_budget(packed)
         return MentorResponse(
             status="ok",
             answer=parsed.get("answer", ""),
@@ -216,7 +224,12 @@ class PolyMentorPipeline:
             lesson=parsed.get("lesson"),
             next_steps=parsed.get("next_steps", []),
             elapsed_ms=(time.perf_counter() - started) * 1000,
+            grounded=packed.grounding_enabled,
+            token_utilization_pct=telemetry["utilization_pct"],
+            truncated_code=packed.truncated_code,
+            dropped_turns=packed.dropped_turns,
         )
+
 
     async def analyze(
         self,
