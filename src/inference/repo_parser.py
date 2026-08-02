@@ -250,4 +250,37 @@ class RepoParser:
                                 return related
         return related
 
+    def extract_repo_context(
+        self,
+        code: str,
+        language: str = "python",
+        root_dir: str | None = None,
+        file_path: str | None = None,
+    ) -> Any:
+        """
+        Analyze code and repository structure to produce an enriched RepoContext instance.
+        """
+        from src.inference.context_builder import RepoContext
+
+        symbols = self.extract_symbols(code, language)
+        related_files = []
+        if root_dir and Path(root_dir).exists():
+            related_files = self.find_related_files(root_dir, file_path, symbols.get("imports", []))
+
+        # Build RepoContext with available attributes
+        kwargs: dict[str, Any] = {
+            "root_dir": root_dir,
+            "file_path": file_path,
+            "dependencies": symbols.get("imports", [])[:15],
+            "related_files": related_files[:15],
+        }
+        # Include structural symbols if supported by RepoContext model
+        if hasattr(RepoContext, "classes") or "classes" in getattr(RepoContext, "__annotations__", {}):
+            kwargs["classes"] = symbols.get("classes", [])[:20]
+        if hasattr(RepoContext, "functions") or "functions" in getattr(RepoContext, "__annotations__", {}):
+            kwargs["functions"] = symbols.get("functions", [])[:25]
+
+        return RepoContext(**kwargs)
+
+
 
