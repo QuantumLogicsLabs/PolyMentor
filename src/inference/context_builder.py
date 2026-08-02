@@ -131,5 +131,37 @@ class ContextBuilder:
             summary = summary[: max_chars - 20] + "... [Truncated]"
         return summary
 
+    @classmethod
+    def format_repo_context(cls, repo: Optional[RepoContext]) -> str:
+        """
+        Formats repository and architectural metadata into concise prompt directives.
+        Enables codebase-aware inference without dumping excess files into the context window.
+        """
+        if not repo:
+            return ""
+
+        sections = []
+        if repo.file_path or repo.workspace_name:
+            location = f"File: {repo.file_path or 'unknown'}"
+            if repo.workspace_name:
+                location += f" (Workspace: {repo.workspace_name})"
+            sections.append(f"Repository Location: {location}")
+
+        if repo.dependencies:
+            deps_str = ", ".join(repo.dependencies[:6])
+            if len(repo.dependencies) > 6:
+                deps_str += "..."
+            sections.append(f"Key Dependencies: {deps_str}")
+
+        if repo.git_status:
+            sections.append(f"Git Status: {repo.git_status}")
+
+        if repo.related_signatures:
+            sigs_str = "; ".join(repo.related_signatures[:3])
+            sections.append(f"Related Signatures: {sigs_str}")
+
+        return "\n".join(sections)
+
+
 
 
