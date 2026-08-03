@@ -18,7 +18,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.inference.pipeline import PolyMentorPipeline
 from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
-from scripts.analyze_file import infer_language_from_filename
+from src.inference.repo_parser import RepoParser
+from scripts.analyze_file import infer_language_from_filename, find_repo_root
+
 
 
 
@@ -128,8 +130,46 @@ def analyze_hunks_static(hunks: list[DiffHunk]) -> list[HunkAnalysisResult]:
     return results
 
 
+def extract_pr_repo_context(hunk_results: list[HunkAnalysisResult], repo_root: Optional[str] = None) -> str:
+    """
+    Synthesizes structural AST repository symbols and dependency signatures for modified files.
+    Enables LLM inference to review architecture impact across inter-file dependencies.
+    """
+    if not repo_root:
+        cwd = Path.cwd()
+        if (cwd / ".git").exists() or (cwd / "pyproject.toml").exists() or (cwd / "package.json").exists():
+            repo_root = str(cwd)
+        elif hunk_results:
+            first_file = Path(hunk_results[0].hunk.file_path)
+            if first_file.exists():
+                repo_root = find_repo_root(first_file)
+                
+    if not repo_root or not Path(repo_root).exists():
+        return "Repository context: Isolated PR diff review (no local repository workspace found)."
+
+    try:
+        parser = RepoParser()
+        context_parts = [f"Repository Architecture Context (Workspace: {Path(repo_root).name}):"]
+        
+        for hr in hunk_results[:10]:  # Limit to top 10 modified files for context budget
+            file_p = Path(repo_root) / hr.hunk.file_path
+            if file_p.exists() and file_p.is_file() and hr.hunk.language in {"python", "javascript", "typescript", "java", "cpp"}:
+                summary = parser.extract_repo_context(str(file_p), repo_root)
+                if summary:
+                    context_parts.append(f"\n--- Structural context for {hr.hunk.file_path} ---")
+                    if summary.get("symbols"):
+                        context_parts.append("Symbols defined in repository: " + ", ".join(s["name"] for s in summary["symbols"][:8]))
+                    if summary.get("related_files"):
+                        context_parts.append("Dependent / related workspace files: " + ", ".join(str(rf) for rf in summary["related_files"][:5]))
+                        
+        return "\n".join(context_parts)
+    except Exception as e:
+        return f"Repository context abstraction skipped: {str(e)}"
+
+
 async def main():
     if len(sys.argv) < 2:
+
 
         print("Usage: python analyze_pr.py <path_to_diff>")
         sys.exit(1)
