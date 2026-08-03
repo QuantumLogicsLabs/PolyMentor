@@ -119,7 +119,7 @@ class ContextBuilder:
         return head_text + marker + tail_text, True
 
     @classmethod
-    def format_static_analysis(cls, analysis_result: Optional[dict[str, Any]], max_chars: int = 800) -> str:
+    def format_static_analysis(cls, analysis_result: Optional[dict[str, Any]], max_chars: int = 1200) -> str:
         """
         Synthesizes deterministic static analyzer findings into a compact summary for LLM grounding.
         Strictly limits output size to preserve token budget.
@@ -129,23 +129,32 @@ class ContextBuilder:
 
         total = analysis_result.get("total_errors", 0)
         errors = analysis_result.get("errors", [])
-        if total == 0 and not errors:
-            return "Static Analysis Grounding: Clean code detected (0 deterministic errors found)."
+        score = analysis_result.get("quality_score")
+        score_str = f" (Quality Score: {score}/100)" if score is not None else ""
 
-        lines = [f"Static Analysis Grounding: Detected {total} potential issue(s):"]
-        for err in errors[:5]:  # Limit to top 5 most notable issues
+        if total == 0 and not errors:
+            return f"Static Analysis Grounding: Clean code detected (0 deterministic errors found){score_str}."
+
+        lines = [f"Static Analysis Grounding: Detected {total} potential issue(s){score_str}:"]
+        for err in errors[:6]:  # Limit to top 6 most notable issues
             line_num = f"[Line {err['line']}] " if err.get("line") else ""
             sev = err.get("severity", "medium").upper()
+            cat = err.get("category", "issue")
             msg = err.get("message", "Issue detected")
-            lines.append(f" - {sev} {line_num}{msg}")
+            sugg = err.get("suggestion")
+            entry = f" - [{cat}] {sev} {line_num}{msg}"
+            if sugg:
+                entry += f" | Verified Fix Suggestion: {sugg}"
+            lines.append(entry)
 
-        if len(errors) > 5:
-            lines.append(f" - ... and {len(errors) - 5} more issue(s). Focus on resolving top errors.")
+        if len(errors) > 6:
+            lines.append(f" - ... and {len(errors) - 6} more issue(s). Focus on resolving top errors.")
 
         summary = "\n".join(lines)
         if len(summary) > max_chars:
             summary = summary[: max_chars - 20] + "... [Truncated]"
         return summary
+
 
     @classmethod
     def format_repo_context(cls, repo: Optional[RepoContext]) -> str:
