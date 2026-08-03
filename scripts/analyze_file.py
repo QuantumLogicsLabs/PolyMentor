@@ -201,6 +201,37 @@ async def analyze_file(file_path: str, language: str, level: str, model: str, js
         return None
 
 
+def check_quality_gates(result: Any, fail_on_bugs: bool = False, min_score: float = 0.0, json_output: bool = False) -> int:
+    """Evaluate analysis results against quality gate thresholds and return appropriate exit code."""
+    if result is None or getattr(result, "status", "error") != "ok":
+        return 1
+
+    if fail_on_bugs:
+        bugs = getattr(result, "suspected_bugs", []) or []
+        summary = getattr(result, "static_analysis_summary", None) or {}
+        static_errors = summary.get("total_errors", 0) if summary.get("supported") else 0
+        if bugs or static_errors > 0:
+            if not json_output:
+                print(f"\n[Quality Gate Failure] Found {len(bugs)} suspected bug(s) and {static_errors} static error(s).")
+            return 2
+
+    if min_score > 0:
+        summary = getattr(result, "static_analysis_summary", None) or {}
+        if summary.get("supported"):
+            score = summary.get("quality_score", 0)
+            if score < min_score:
+                if not json_output:
+                    print(f"\n[Quality Gate Failure] Quality score {score}/100 is below minimum threshold of {min_score}/100.")
+                return 3
+        else:
+            if not json_output:
+                print(f"\n[Quality Gate Warning] Static analysis not supported for language; skipping minimum score evaluation.")
+
+    if not json_output and (fail_on_bugs or min_score > 0):
+        print("\n[Quality Gate] Passed all configured quality thresholds.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Analyze a local file using Groq-powered PolyMentor.")
     parser.add_argument("file", help="Path to the file to analyze.")
@@ -213,10 +244,13 @@ def main():
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Groq model name.")
     parser.add_argument("--json", dest="json_output", action="store_true", help="Output machine-readable JSON.")
+    parser.add_argument("--fail-on-bugs", action="store_true", help="Exit with code 2 if any suspected bugs or static errors are found.")
+    parser.add_argument("--min-score", type=float, default=0.0, help="Exit with code 3 if quality score falls below threshold.")
     args = parser.parse_args()
 
-    asyncio.run(analyze_file(args.file, args.language, args.level, args.model, json_output=args.json_output))
-
+    result = asyncio.run(analyze_file(args.file, args.language, args.level, args.model, json_output=args.json_output))
+    exit_code = check_quality_gates(result, fail_on_bugs=args.fail_on_bugs, min_score=args.min_score, json_output=args.json_output)
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
