@@ -212,8 +212,82 @@ def truncate_diff_budget(hunk_results: list[HunkAnalysisResult], max_chars: int 
     return "\n\n".join(packed_lines), was_truncated, dropped_files
 
 
+def generate_pr_comment_md(response, hunk_results: list[HunkAnalysisResult], dropped_files: list[str]) -> str:
+    """
+    Synthesizes an enterprise-grade GitHub PR markdown review comment combining
+    deterministic static analysis findings, quality gate scorecards, and LLM guidance.
+    """
+    lines = ["# 🤖 PolyMentor PR Review & Quality Gate\n"]
+    
+    # Calculate aggregate scores and total errors
+    total_errors = sum(hr.static_summary.get("total_errors", 0) for hr in hunk_results)
+    supported_hunks = [hr for hr in hunk_results if hr.static_summary.get("supported", False)]
+    avg_score = int(sum(hr.quality_score for hr in supported_hunks) / len(supported_hunks)) if supported_hunks else 100
+    
+    # Risk assessment badge
+    if total_errors > 5 or avg_score < 60:
+        risk_badge = "🔴 **Critical Risk** — Immediate fixes required before merge."
+    elif total_errors > 0 or avg_score < 80:
+        risk_badge = "🟡 **Medium Risk** — Review suspected bugs and quality recommendations."
+    else:
+        risk_badge = "🟢 **Low Risk / Clean** — Code meets quality threshold standards."
+        
+    lines.append(f"### 🛡️ Risk & Quality Assessment\n{risk_badge}\n")
+    lines.append(f"- **Aggregate Quality Score:** `{avg_score}/100`")
+    lines.append(f"- **Deterministic Bug Findings:** `{total_errors} issue(s)` across `{len(hunk_results)} file(s)` analyzed.\n")
+    
+    # Static Analysis Table
+    if supported_hunks:
+        lines.append("### 📊 File Quality Scorecard\n")
+        lines.append("| File Path | Language | Quality Score | Static Errors | Status |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: |")
+        for hr in hunk_results:
+            err_count = hr.static_summary.get("total_errors", 0)
+            status_icon = "❌ Failed" if err_count > 0 else "✅ Passed"
+            lines.append(f"| `{hr.hunk.file_path}` | `{hr.hunk.language}` | `{hr.quality_score}/100` | `{err_count}` | {status_icon} |")
+        lines.append("")
+
+    if total_errors > 0:
+        lines.append("### 🐛 Deterministic Static Analysis Findings\n")
+        for hr in hunk_results:
+            errors = hr.static_summary.get("errors", [])
+            if errors:
+                lines.append(f"**In `{hr.hunk.file_path}`:**")
+                for err in errors[:5]:  # Cap at top 5 per file
+                    rule = err.get("rule", "bug_pattern")
+                    msg = err.get("message", "Issue detected")
+                    lines.append(f"- `[{rule}]`: {msg}")
+        lines.append("")
+
+    lines.append("### 🧠 Senior AI Mentor Architecture & Logic Review\n")
+    lines.append(response.answer)
+    
+    if response.suspected_bugs:
+        lines.append("\n### ⚠️ Potential Logical Risks & Vulnerabilities")
+        for bug in response.suspected_bugs:
+            lines.append(f"- {bug}")
+            
+    if response.lesson:
+        lines.append(f"\n### 💡 Mentor Pedagogical Insight\n{response.lesson}")
+        
+    if response.next_steps:
+        lines.append("\n### 🎯 Recommended Action Items & Test Gaps")
+        for step in response.next_steps:
+            lines.append(f"- {step}")
+            
+    if response.fixed_code:
+        lines.append(f"\n### ✨ Suggested Code Refactoring\n```diff\n{response.fixed_code}\n```")
+        
+    if dropped_files:
+        lines.append(f"\n> ℹ️ *Note: {len(dropped_files)} file(s) omitted from deep LLM context to preserve token budget ({', '.join(dropped_files[:3])}...).*")
+        
+    lines.append(f"\n---\n*Grounded review completed using **{response.model}** in **{response.elapsed_ms:.0f}ms** (Static analysis grounding enabled)*")
+    return "\n".join(lines)
+
+
 async def main():
     if len(sys.argv) < 2:
+
 
 
 
