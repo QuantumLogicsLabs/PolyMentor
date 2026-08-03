@@ -71,3 +71,41 @@ class TestQualityGates:
         res = DummyResult(status="error")
         assert check_quality_gates(res) == 1
 
+
+
+class MockPipeline:
+    def __init__(self):
+        self.calls = []
+        
+    async def analyze(self, code, language, level, question, repo=None):
+        self.calls.append({"code": code, "language": language, "repo": repo})
+        from src.inference.pipeline import MentorResult
+        return MentorResult(
+            answer="Clean code review.",
+            status="ok",
+            model="mock-model",
+            elapsed_ms=10.5,
+            grounded=True,
+        )
+
+
+class TestBatchAnalyzer:
+    @pytest.mark.asyncio
+    async def test_analyze_target_batch(self, tmp_path):
+        from scripts.analyze_file import analyze_target
+        
+        test_dir = tmp_path / "project_source"
+        test_dir.mkdir()
+        (test_dir / "app.py").write_text("def main(): pass", encoding="utf-8")
+        (test_dir / "index.js").write_text("console.log('hello');", encoding="utf-8")
+        (test_dir / "ignore.tmp").write_text("ignore me", encoding="utf-8")
+        
+        mock_pipe = MockPipeline()
+        results = await analyze_target(str(test_dir), language="auto", level="advanced", model="mock", json_output=True, pipeline=mock_pipe)
+        
+        assert len(results) == 2  # Only app.py and index.js should be processed
+        assert len(mock_pipe.calls) == 2
+        langs_seen = {call["language"] for call in mock_pipe.calls}
+        assert langs_seen == {"python", "javascript"}
+
+
