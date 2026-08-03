@@ -25,13 +25,14 @@ def test_format_static_analysis_with_buggy_python():
 
 
 def test_format_static_analysis_clean_code():
-    code = "def add(a: int, b: int) -> int:\n    return a + b\n"
+    code = 'def add(a: int, b: int) -> int:\n    """Add two integers and return the sum."""\n    return a + b\n'
     result = AdvancedCodeAnalyzer.analyze(code, "python")
     result["quality_score"] = 100
     
     formatted = ContextBuilder.format_static_analysis(result, max_chars=1200)
     assert "Clean code detected (0 deterministic errors found)" in formatted
     assert "(Quality Score: 100/100)" in formatted
+
 
 
 def test_format_static_analysis_truncation():
