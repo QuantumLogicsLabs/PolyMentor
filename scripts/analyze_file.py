@@ -22,11 +22,44 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+EXTENSION_LANGUAGE_MAP = {
+    ".py": "python",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".h": "cpp",
+    ".c": "cpp",
+    ".java": "java",
+    ".go": "go",
+    ".rs": "rust",
+    ".cs": "csharp",
+    ".rb": "ruby",
+    ".php": "php",
+    ".html": "html",
+    ".css": "css",
+}
+
+
+def infer_language_from_filename(filename: str, default_language: str = "python") -> str:
+    """Infer programming language from file extension for accurate analysis grounding."""
+    ext = Path(filename).suffix.lower()
+    return EXTENSION_LANGUAGE_MAP.get(ext, default_language)
+
+
 async def analyze_file(file_path: str, language: str, level: str, model: str):
     path = Path(file_path)
     if not path.is_file():
         print(f"Error: File '{file_path}' does not exist.")
         sys.exit(1)
+
+    if language.lower() == "auto" or not language:
+        language = infer_language_from_filename(str(path))
+
 
     try:
         code_content = path.read_text(encoding="utf-8")
@@ -89,7 +122,7 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
 def main():
     parser = argparse.ArgumentParser(description="Analyze a local file using Groq-powered PolyMentor.")
     parser.add_argument("file", help="Path to the file to analyze.")
-    parser.add_argument("--language", default="python", help="Programming language (e.g., python, javascript).")
+    parser.add_argument("--language", default="auto", help="Programming language or 'auto' to infer from extension.")
     parser.add_argument(
         "--level",
         default="intermediate",
