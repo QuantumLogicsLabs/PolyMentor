@@ -51,6 +51,17 @@ def infer_language_from_filename(filename: str, default_language: str = "python"
     return EXTENSION_LANGUAGE_MAP.get(ext, default_language)
 
 
+def find_repo_root(target_path: Path) -> str | None:
+    """Traverse parent directories to find the repository root (.git or project config)."""
+    curr = target_path.resolve()
+    if curr.is_file():
+        curr = curr.parent
+    for parent in [curr] + list(curr.parents):
+        if (parent / ".git").exists() or (parent / "pyproject.toml").exists() or (parent / "package.json").exists():
+            return str(parent)
+    return None
+
+
 async def analyze_file(file_path: str, language: str, level: str, model: str):
     path = Path(file_path)
     if not path.is_file():
@@ -67,7 +78,25 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
         print(f"Error reading file '{file_path}': {e}")
         sys.exit(1)
 
-    print(f"Analyzing {file_path} ({len(code_content)} chars) with {model}...\n")
+    repo_root = find_repo_root(path)
+    rel_path = str(path.resolve().relative_to(Path(repo_root))) if repo_root else path.name
+
+    repo_context = None
+    try:
+        from src.inference.repo_parser import RepoParser
+        repo_parser = RepoParser()
+        repo_context = repo_parser.extract_repo_context(
+            code=code_content,
+            language=language,
+            root_dir=repo_root,
+            file_path=rel_path,
+        )
+        if repo_root:
+            print(f"[Grounding] Connected repo context: {repo_root} (target: {rel_path})")
+    except Exception as e:
+        logger.debug("Failed to extract repository context: %s", e)
+
+    print(f"Analyzing {file_path} ({len(code_content)} chars, language: {language}) with {model}...\n")
     
     pipeline = PolyMentorPipeline.from_groq(model=model)
     
@@ -76,8 +105,10 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
             code=code_content,
             language=language,
             level=level,
-            question="Review this code, identify likely bugs, teach the concept, and suggest improvements."
+            question="Review this code, identify likely bugs, teach the concept, and suggest improvements.",
+            repo=repo_context,
         )
+
         
         if result.status != "ok":
             print(f"Error from PolyMentorPipeline: {result.status}")
