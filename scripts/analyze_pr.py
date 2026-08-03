@@ -17,7 +17,9 @@ from typing import Optional
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.inference.pipeline import PolyMentorPipeline
+from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
 from scripts.analyze_file import infer_language_from_filename
+
 
 
 @dataclass
@@ -85,8 +87,50 @@ def parse_pr_diff(diff_content: str) -> list[DiffHunk]:
     return hunks
 
 
+@dataclass
+class HunkAnalysisResult:
+    """Combines a parsed diff hunk with its deterministic static analysis findings."""
+    hunk: DiffHunk
+    static_summary: dict
+    has_bugs: bool
+    quality_score: int
+
+
+def analyze_hunks_static(hunks: list[DiffHunk]) -> list[HunkAnalysisResult]:
+    """
+    Runs deterministic static analysis on newly added code in PR diff hunks.
+    Provides instant verification and grounding before calling LLM inference.
+    """
+    analyzer = AdvancedCodeAnalyzer()
+    results = []
+    
+    for hunk in hunks:
+        if not hunk.added_code.strip() or hunk.language not in {"python", "javascript", "typescript", "java", "cpp"}:
+            results.append(HunkAnalysisResult(
+                hunk=hunk,
+                static_summary={"supported": False, "total_errors": 0, "quality_score": 100},
+                has_bugs=False,
+                quality_score=100
+            ))
+            continue
+            
+        summary = analyzer.analyze(hunk.added_code, hunk.language)
+        errors_count = summary.get("total_errors", 0)
+        score = summary.get("quality_score", 100)
+        
+        results.append(HunkAnalysisResult(
+            hunk=hunk,
+            static_summary=summary,
+            has_bugs=errors_count > 0,
+            quality_score=score
+        ))
+        
+    return results
+
+
 async def main():
     if len(sys.argv) < 2:
+
         print("Usage: python analyze_pr.py <path_to_diff>")
         sys.exit(1)
 
