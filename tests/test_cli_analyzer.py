@@ -83,12 +83,15 @@ class MockPipeline:
         self.calls.append({"code": code, "language": language, "repo": repo})
         from src.inference.pipeline import MentorResponse
         return MentorResponse(
-            answer="Clean code review.",
             status="ok",
+            answer="Clean code review.",
+            language=language,
+            level=level,
             model="mock-model",
             elapsed_ms=10.5,
             grounded=True,
         )
+
 
 
 
