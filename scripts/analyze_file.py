@@ -119,7 +119,24 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
         print("Code Review & Analysis")
         print("=" * 60)
         
+        if result.static_analysis_summary and result.static_analysis_summary.get("supported"):
+            summary = result.static_analysis_summary
+            score = summary.get("quality_score", 0)
+            err_count = summary.get("total_errors", 0)
+            print(f"\n[Static Analysis Grounding] Quality Score: {score}/100 | Deterministic Issues: {err_count}")
+            for err in summary.get("errors", []):
+                cat = err.get("category", "issue")
+                sev = err.get("severity", "medium").upper()
+                line = err.get("line", "?")
+                msg = err.get("message", "")
+                sug = err.get("suggestion", "")
+                print(f"  * Line {line} [{sev}] ({cat}): {msg}")
+                if sug:
+                    print(f"    -> Verified Suggestion: {sug}")
+            print("-" * 60)
+        
         print(f"\n{result.answer}\n")
+
         
         if result.suspected_bugs:
             print("-" * 60)
