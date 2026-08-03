@@ -25,8 +25,10 @@ from dotenv import load_dotenv
 from groq import AsyncGroq
 from src.inference.context_builder import ContextBuilder, RepoContext, PackedPrompt
 from src.inference.repo_parser import RepoParser
+from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
 
 load_dotenv()
+
 
 
 __all__ = [
@@ -108,6 +110,8 @@ class MentorResponse:
     token_utilization_pct: float = 0.0
     truncated_code: bool = False
     dropped_turns: int = 0
+    static_analysis_summary: Optional[dict] = None
+
 
 
 
@@ -212,7 +216,16 @@ class PolyMentorPipeline:
                 file_path=file_path,
             )
 
+        if analysis_result is None and code and code.strip():
+            try:
+                analysis_result = AdvancedCodeAnalyzer.analyze(code, language)
+                if analysis_result.get("supported", False) and "quality_score" not in analysis_result:
+                    analysis_result["quality_score"] = AdvancedCodeAnalyzer.get_quality_score(code, language)
+            except Exception:
+                analysis_result = None
+
         packed = self.context_builder.build_prompt(
+
 
             message=message,
             code=code,
@@ -254,7 +267,22 @@ class PolyMentorPipeline:
             token_utilization_pct=telemetry["utilization_pct"],
             truncated_code=packed.truncated_code,
             dropped_turns=packed.dropped_turns,
+            static_analysis_summary={
+                "total_errors": analysis_result.get("total_errors", 0),
+                "quality_score": analysis_result.get("quality_score"),
+                "errors": [
+                    {
+                        "category": e.get("category"),
+                        "severity": e.get("severity"),
+                        "line": e.get("line"),
+                        "message": e.get("message"),
+                        "suggestion": e.get("suggestion")
+                    }
+                    for e in analysis_result.get("errors", [])[:5]
+                ]
+            } if analysis_result and analysis_result.get("supported", False) else None,
         )
+
 
 
     async def analyze(

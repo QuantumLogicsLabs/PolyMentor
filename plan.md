@@ -4,11 +4,12 @@ Stop competing with ChatGPT on raw model IQ. Use what you already have—Groq, f
 
 ## Todos
 
-- [ ] Wire analyzer + optional code/language/history into `/chat` via ContextBuilder + pipeline prompt pack
+- [x] Wire analyzer + optional code/language/history into `/chat` via ContextBuilder + pipeline prompt pack
 - [ ] Add one-shot CLI/script: analyze file → Groq review for local use without frontend
 - [ ] Add `pr-mentor.yml`: diff + analyzer + Groq → PR comment using `GROQ_API_KEY` secret
 - [ ] Add pytest CI workflow and fail-triage Groq comment step
-- [ ] Add small fixture set to measure grounded chat vs blind Groq (prove productivity)
+- [x] Add small fixture set to measure grounded chat vs blind Groq (prove productivity)
+
 
 ## Honest baseline
 
@@ -30,14 +31,15 @@ flowchart LR
 
 ## What you have today (and the gap)
 
-| Asset | Status | Gap |
+| Asset | Status | Gap / Current State |
 | --- | --- | --- |
-| Groq chat in [`src/inference/pipeline.py`](src/inference/pipeline.py) | Live | Blind chat; weak grounding |
-| Analyzer in [`src/analysis/advanced_analyzer.py`](src/analysis/advanced_analyzer.py) | Live via `/analyze` | **Not fed into `/chat`** |
-| [`ChatRequest`](src/api/app.py) | `message` + `level` only | No `code` / `language` / `history` |
-| Tree-sitter under `vendor/` | Vendored | Unused in `src/` |
-| GHA daily smoke + Mongo export | Live | No PR review / fail triage |
+| Groq chat in [`src/inference/pipeline.py`](src/inference/pipeline.py) | Live Hybrid | **Grounded via automatic static analyzer & AST injection** |
+| Analyzer in [`src/analysis/advanced_analyzer.py`](src/analysis/advanced_analyzer.py) | Live Hybrid | **Integrated automatically into `/chat` and pipeline loop** |
+| [`ChatRequest`](src/api/app.py) | Full Support | Fully extended with optional `code`, `language`, `history`, `repo_root` |
+| Tree-sitter under `vendor/` | Active in `src/` | Integrated into `RepoParser` for multi-language AST extraction |
+| GHA daily smoke + Mongo export | Live + Hybrid Smoke | No PR review / fail triage yet |
 | LoRA train/eval scripts | Local GPU path | No free serving → not the productivity lever |
+
 
 ---
 

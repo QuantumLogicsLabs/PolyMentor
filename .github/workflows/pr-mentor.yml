@@ -39,6 +39,8 @@ jobs:
         
       - name: Post PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
+        continue-on-error: true
         with:
           header: polymentor-review
           path: pr_comment.md
+

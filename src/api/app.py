@@ -94,6 +94,8 @@ class ChatResponse(BaseModel):
     elapsed_ms: float
     grounded: bool = Field(default=False, description="Whether static analysis grounding was active")
     token_utilization_pct: float = Field(default=0.0, description="Percentage of token prompt budget consumed")
+    static_analysis_summary: Optional[dict] = Field(default=None, description="Deterministic static analysis findings used for response grounding")
+
 
 
 
@@ -694,7 +696,9 @@ async def chat(request: Request, payload: ChatRequest):
             "elapsed_ms": response.elapsed_ms,
             "grounded": response.grounded,
             "token_utilization_pct": response.token_utilization_pct,
+            "static_analysis_summary": response.static_analysis_summary,
         }
+
 
     except Exception as e:
         if isinstance(e, HTTPException):

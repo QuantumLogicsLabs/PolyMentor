@@ -26,3 +26,11 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{"message":"Say hello in one short sentence.","level":"beginner"}'
 
+      - name: Smoke test deployed hybrid code mentor endpoint
+        run: |
+          curl --fail --show-error --silent \
+            --request POST "$POLYMENTOR_API_URL/chat" \
+            --header "Content-Type: application/json" \
+            --data '{"message":"Review this loop and explain any issues.","code":"for i in range(10)\n    print(i)","language":"python","level":"beginner"}'
+
+
