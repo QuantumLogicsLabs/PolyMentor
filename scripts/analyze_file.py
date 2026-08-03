@@ -10,9 +10,12 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import sys
 import os
 from pathlib import Path
+from typing import Optional, Any
+
 
 # Add project root to sys.path so we can import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -62,10 +65,13 @@ def find_repo_root(target_path: Path) -> str | None:
     return None
 
 
-async def analyze_file(file_path: str, language: str, level: str, model: str):
+async def analyze_file(file_path: str, language: str, level: str, model: str, json_output: bool = False, pipeline: Optional[PolyMentorPipeline] = None) -> Any:
     path = Path(file_path)
     if not path.is_file():
-        print(f"Error: File '{file_path}' does not exist.")
+        if json_output:
+            print(json.dumps({"error": f"File '{file_path}' does not exist."}))
+        else:
+            print(f"Error: File '{file_path}' does not exist.")
         sys.exit(1)
 
     if language.lower() == "auto" or not language:
@@ -75,7 +81,10 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
     try:
         code_content = path.read_text(encoding="utf-8")
     except Exception as e:
-        print(f"Error reading file '{file_path}': {e}")
+        if json_output:
+            print(json.dumps({"error": f"Error reading file '{file_path}': {e}"}))
+        else:
+            print(f"Error reading file '{file_path}': {e}")
         sys.exit(1)
 
     repo_root = find_repo_root(path)
@@ -91,14 +100,16 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
             root_dir=repo_root,
             file_path=rel_path,
         )
-        if repo_root:
+        if repo_root and not json_output:
             print(f"[Grounding] Connected repo context: {repo_root} (target: {rel_path})")
     except Exception as e:
         logger.debug("Failed to extract repository context: %s", e)
 
-    print(f"Analyzing {file_path} ({len(code_content)} chars, language: {language}) with {model}...\n")
+    if not json_output:
+        print(f"Analyzing {file_path} ({len(code_content)} chars, language: {language}) with {model}...\n")
     
-    pipeline = PolyMentorPipeline.from_groq(model=model)
+    if pipeline is None:
+        pipeline = PolyMentorPipeline.from_groq(model=model)
     
     try:
         result = await pipeline.analyze(
@@ -110,10 +121,28 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
         )
 
         
+        if json_output:
+            payload = {
+                "file": str(path),
+                "language": language,
+                "status": result.status,
+                "answer": result.answer,
+                "suspected_bugs": result.suspected_bugs,
+                "lesson": result.lesson,
+                "next_steps": result.next_steps,
+                "fixed_code": result.fixed_code,
+                "model": result.model,
+                "elapsed_ms": result.elapsed_ms,
+                "grounded": getattr(result, "grounded", False),
+                "static_analysis_summary": getattr(result, "static_analysis_summary", None),
+            }
+            print(json.dumps(payload, indent=2))
+            return result
+
         if result.status != "ok":
             print(f"Error from PolyMentorPipeline: {result.status}")
             print(result.answer)
-            return
+            return result
 
         print("=" * 60)
         print("Code Review & Analysis")
@@ -161,10 +190,15 @@ async def analyze_file(file_path: str, language: str, level: str, model: str):
 
         print("-" * 60)
         print(f"Model: {result.model} | Time: {result.elapsed_ms:.0f} ms")
+        return result
 
     except Exception as exc:
-        print(f"Analysis failed: {exc}")
+        if json_output:
+            print(json.dumps({"status": "error", "error": str(exc)}))
+        else:
+            print(f"Analysis failed: {exc}")
         logger.error("Analysis failed: %s", exc, exc_info=True)
+        return None
 
 
 def main():
@@ -178,9 +212,11 @@ def main():
         help="Explanation depth.",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Groq model name.")
+    parser.add_argument("--json", dest="json_output", action="store_true", help="Output machine-readable JSON.")
     args = parser.parse_args()
 
-    asyncio.run(analyze_file(args.file, args.language, args.level, args.model))
+    asyncio.run(analyze_file(args.file, args.language, args.level, args.model, json_output=args.json_output))
+
 
 
 if __name__ == "__main__":
