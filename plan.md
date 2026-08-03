@@ -5,10 +5,11 @@ Stop competing with ChatGPT on raw model IQ. Use what you already have—Groq, f
 ## Todos
 
 - [x] Wire analyzer + optional code/language/history into `/chat` via ContextBuilder + pipeline prompt pack
-- [ ] Add one-shot CLI/script: analyze file → Groq review for local use without frontend
-- [ ] Add `pr-mentor.yml`: diff + analyzer + Groq → PR comment using `GROQ_API_KEY` secret
+- [x] Add one-shot CLI/script: analyze file → Groq review for local use without frontend
+- [x] Add `pr-mentor.yml`: diff + analyzer + Groq → PR comment using `GROQ_API_KEY` secret
 - [ ] Add pytest CI workflow and fail-triage Groq comment step
 - [x] Add small fixture set to measure grounded chat vs blind Groq (prove productivity)
+
 
 
 ## Honest baseline
@@ -86,9 +87,9 @@ Do **not** spend cycles on GPU hosting / hybrid routing until you have free Cola
 
 1. **Hybrid `/chat`** — analyzer → context → Groq; expand request schema; update smoke test payload in [`polymentor-daily.yml`](.github/workflows/polymentor-daily.yml).
 2. [x] **CLI one-shot & batch analyzer** — `scripts/analyze_file.py` implemented with automatic language inference, Git repository root discovery, AST structural grounding, machine-readable JSON mode, quality gate exit codes (`--fail-on-bugs`, `--min-score`), and directory batch scanning.
-3. **`pr-mentor.yml`** — PR diff review bot (Actions + Groq secret).
-
+3. [x] **`pr-mentor.yml` & PR review bot** — Automated PR diff review implemented in `scripts/analyze_pr.py` and `.github/workflows/pr-mentor.yml` with multi-file diff hunk parsing, deterministic static analysis bug detection, AST structural grounding, quality scorecards, risk assessment badges, prioritized token budget pruning, and CI artifact archiving.
 4. **`ci-triage` step** — attach to existing test job once you add a real `pytest` workflow (currently missing).
+
 5. **Tree-sitter polish** — only after hybrid chat works; replace weakest regex paths.
 
 Out of scope for this budget plan: OpenAI, paid RunPod serving, FAISS/CodeBERT revival, rewriting the vision doc’s Phase-4 “replace Groq” fantasy as the near-term goal.
