@@ -2,10 +2,10 @@
 """
 analyze_file.py
 ---------------
-One-shot CLI script to analyze a local file using PolyMentor's Groq pipeline.
+One-shot CLI script to analyze a local file or directory using PolyMentor's Groq pipeline.
 
 Usage:
-    python scripts/analyze_file.py <path/to/file> [--language python] [--level beginner]
+    python scripts/analyze_file.py <path/to/file_or_dir> [--language auto] [--level beginner] [--json]
 """
 
 import argparse
@@ -15,7 +15,6 @@ import sys
 import os
 from pathlib import Path
 from typing import Optional, Any
-
 
 # Add project root to sys.path so we can import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -77,7 +76,6 @@ async def analyze_file(file_path: str, language: str, level: str, model: str, js
     if language.lower() == "auto" or not language:
         language = infer_language_from_filename(str(path))
 
-
     try:
         code_content = path.read_text(encoding="utf-8")
     except Exception as e:
@@ -120,7 +118,6 @@ async def analyze_file(file_path: str, language: str, level: str, model: str, js
             repo=repo_context,
         )
 
-        
         if json_output:
             payload = {
                 "file": str(path),
@@ -166,7 +163,6 @@ async def analyze_file(file_path: str, language: str, level: str, model: str, js
         
         print(f"\n{result.answer}\n")
 
-        
         if result.suspected_bugs:
             print("-" * 60)
             print("Suspected Bugs:")
@@ -232,9 +228,71 @@ def check_quality_gates(result: Any, fail_on_bugs: bool = False, min_score: floa
     return 0
 
 
+async def analyze_target(
+    target_path: str,
+    language: str = "auto",
+    level: str = "intermediate",
+    model: str = DEFAULT_MODEL,
+    json_output: bool = False,
+    pipeline: Optional[PolyMentorPipeline] = None,
+) -> list[Any]:
+    path = Path(target_path)
+    if not path.exists():
+        if json_output:
+            print(json.dumps({"error": f"Target '{target_path}' does not exist."}))
+        else:
+            print(f"Error: Target '{target_path}' does not exist.")
+        sys.exit(1)
+
+    if path.is_file():
+        res = await analyze_file(str(path), language, level, model, json_output, pipeline)
+        return [res] if res else []
+
+    if not json_output:
+        print(f"[Batch Mode] Scanning directory '{target_path}' for supported source files...\n")
+        
+    supported_exts = set(EXTENSION_LANGUAGE_MAP.keys())
+    ignore_dirs = {".git", "__pycache__", "node_modules", "venv", ".venv", "dist", "build"}
+    
+    source_files = []
+    for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs and not d.startswith(".")]
+        for file in files:
+            if Path(file).suffix.lower() in supported_exts:
+                source_files.append(os.path.join(root, file))
+                
+    if not source_files:
+        if not json_output:
+            print(f"No supported source files found under '{target_path}'.")
+        return []
+
+    results = []
+    for f in sorted(source_files):
+        if not json_output:
+            print(f"\n--- Processing: {f} ---")
+        res = await analyze_file(f, "auto" if language == "auto" else language, level, model, json_output=False, pipeline=pipeline)
+        if res:
+            results.append((f, res))
+
+    if json_output:
+        batch_payload = []
+        for f, r in results:
+            summary = getattr(r, "static_analysis_summary", None) or {}
+            batch_payload.append({
+                "file": f,
+                "status": getattr(r, "status", "error"),
+                "suspected_bugs": getattr(r, "suspected_bugs", []),
+                "quality_score": summary.get("quality_score", 0) if summary.get("supported") else None,
+                "static_errors": summary.get("total_errors", 0) if summary.get("supported") else None,
+            })
+        print(json.dumps({"directory": str(path), "files_analyzed": len(results), "results": batch_payload}, indent=2))
+
+    return [r for _, r in results]
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Analyze a local file using Groq-powered PolyMentor.")
-    parser.add_argument("file", help="Path to the file to analyze.")
+    parser = argparse.ArgumentParser(description="Analyze a local file or directory using Groq-powered PolyMentor.")
+    parser.add_argument("file", help="Path to the file or directory to analyze.")
     parser.add_argument("--language", default="auto", help="Programming language or 'auto' to infer from extension.")
     parser.add_argument(
         "--level",
@@ -248,9 +306,18 @@ def main():
     parser.add_argument("--min-score", type=float, default=0.0, help="Exit with code 3 if quality score falls below threshold.")
     args = parser.parse_args()
 
-    result = asyncio.run(analyze_file(args.file, args.language, args.level, args.model, json_output=args.json_output))
-    exit_code = check_quality_gates(result, fail_on_bugs=args.fail_on_bugs, min_score=args.min_score, json_output=args.json_output)
-    sys.exit(exit_code)
+    results = asyncio.run(analyze_target(args.file, args.language, args.level, args.model, json_output=args.json_output))
+    max_exit = 0
+    for res in results:
+        code = check_quality_gates(res, fail_on_bugs=args.fail_on_bugs, min_score=args.min_score, json_output=args.json_output or len(results) > 1)
+        max_exit = max(max_exit, code)
+        
+    if not args.json_output and len(results) > 1:
+        if max_exit == 0 and (args.fail_on_bugs or args.min_score > 0):
+            print(f"\n[Batch Quality Gate] All {len(results)} analyzed files passed configured quality thresholds.")
+        elif max_exit > 0:
+            print(f"\n[Batch Quality Gate] Quality gate failed across {len(results)} files (exit code: {max_exit}).")
+    sys.exit(max_exit)
 
 
 if __name__ == "__main__":
