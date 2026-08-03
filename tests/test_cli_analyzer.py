@@ -43,8 +43,10 @@ class TestCLIAnalyzerUtilities:
         # Test null on isolated folder without repository indicators
         no_git_dir = tmp_path / "isolated"
         no_git_dir.mkdir()
+        isolated_file = no_git_dir / "test.txt"
         isolated_file.write_text("nothing here", encoding="utf-8")
         assert find_repo_root(isolated_file) is None
+
 
 
 class DummyResult:
@@ -79,14 +81,15 @@ class MockPipeline:
         
     async def analyze(self, code, language, level, question, repo=None):
         self.calls.append({"code": code, "language": language, "repo": repo})
-        from src.inference.pipeline import MentorResult
-        return MentorResult(
+        from src.inference.pipeline import MentorResponse
+        return MentorResponse(
             answer="Clean code review.",
             status="ok",
             model="mock-model",
             elapsed_ms=10.5,
             grounded=True,
         )
+
 
 
 class TestBatchAnalyzer:
