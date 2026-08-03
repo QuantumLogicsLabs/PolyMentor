@@ -167,8 +167,54 @@ def extract_pr_repo_context(hunk_results: list[HunkAnalysisResult], repo_root: O
         return f"Repository context abstraction skipped: {str(e)}"
 
 
+def truncate_diff_budget(hunk_results: list[HunkAnalysisResult], max_chars: int = 25000) -> tuple[str, bool, list[str]]:
+    """
+    Intelligently packs PR diff hunks into a fixed character token budget.
+    Prioritizes files containing deterministic static analysis bugs, followed by core source code,
+    while deferring or omitting bulky lockfiles and config dumps.
+
+    Returns:
+        tuple: (packed_diff_string, was_truncated, list_of_dropped_files)
+    """
+    if not hunk_results:
+        return "", False, []
+
+    # Sort hunks by priority: (has_bugs -> core code file -> lower quality score -> shorter length)
+    def priority_key(hr: HunkAnalysisResult):
+        is_core = hr.hunk.language in {"python", "javascript", "typescript", "java", "cpp", "go", "rust"}
+        is_lock = any(hr.hunk.file_path.endswith(l) for l in [".lock", "package-lock.json", "poetry.lock", "yarn.lock"])
+        return (0 if is_lock else 1, 1 if hr.has_bugs else 0, 1 if is_core else 0, -hr.quality_score)
+
+    sorted_hunks = sorted(hunk_results, key=priority_key, reverse=True)
+    
+    packed_lines = []
+    current_chars = 0
+    was_truncated = False
+    dropped_files = []
+
+    for hr in sorted_hunks:
+        hunk_len = len(hr.hunk.raw_diff)
+        if current_chars + hunk_len <= max_chars:
+            packed_lines.append(f"--- Modifying: {hr.hunk.file_path} (Quality Score: {hr.quality_score}/100) ---")
+            packed_lines.append(hr.hunk.raw_diff)
+            current_chars += hunk_len + 80
+        else:
+            was_truncated = True
+            dropped_files.append(hr.hunk.file_path)
+            # Try appending a truncated preview if there's still meaningful room
+            remaining = max_chars - current_chars
+            if remaining > 500:
+                preview_lines = hr.hunk.raw_diff[:remaining - 150]
+                packed_lines.append(f"--- Modifying: {hr.hunk.file_path} (Truncated due to token budget) ---")
+                packed_lines.append(preview_lines + "\n... [Remaining hunk truncated for token budget preservation]")
+                current_chars = max_chars
+
+    return "\n\n".join(packed_lines), was_truncated, dropped_files
+
+
 async def main():
     if len(sys.argv) < 2:
+
 
 
         print("Usage: python analyze_pr.py <path_to_diff>")
