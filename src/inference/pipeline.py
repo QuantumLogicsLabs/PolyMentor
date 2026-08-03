@@ -25,8 +25,10 @@ from dotenv import load_dotenv
 from groq import AsyncGroq
 from src.inference.context_builder import ContextBuilder, RepoContext, PackedPrompt
 from src.inference.repo_parser import RepoParser
+from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
 
 load_dotenv()
+
 
 
 __all__ = [
@@ -212,7 +214,16 @@ class PolyMentorPipeline:
                 file_path=file_path,
             )
 
+        if analysis_result is None and code and code.strip():
+            try:
+                analysis_result = AdvancedCodeAnalyzer.analyze(code, language)
+                if analysis_result.get("supported", False) and "quality_score" not in analysis_result:
+                    analysis_result["quality_score"] = AdvancedCodeAnalyzer.get_quality_score(code, language)
+            except Exception:
+                analysis_result = None
+
         packed = self.context_builder.build_prompt(
+
 
             message=message,
             code=code,
