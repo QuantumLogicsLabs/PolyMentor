@@ -5,10 +5,13 @@ analyze_pr.py
 Analyzes a Pull Request diff using PolyMentor's Groq pipeline and generates a markdown comment.
 """
 
+import argparse
 import asyncio
+import json
 import os
 import re
 import sys
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -285,78 +288,120 @@ def generate_pr_comment_md(response, hunk_results: list[HunkAnalysisResult], dro
     return "\n".join(lines)
 
 
-async def main():
-    if len(sys.argv) < 2:
-
-
-
-
-        print("Usage: python analyze_pr.py <path_to_diff>")
-        sys.exit(1)
-
-
-    diff_path = Path(sys.argv[1])
+async def run_pr_review(
+    diff_file: str,
+    output_md: str = "pr_comment.md",
+    json_summary: Optional[str] = None,
+    fail_on_bugs: bool = False,
+    min_score: Optional[float] = None,
+    pipeline: Optional[PolyMentorPipeline] = None
+) -> tuple[int, dict]:
+    """
+    Executes the grounded PR review pipeline, returning an exit code and summary dictionary.
+    Exit codes: 0=pass, 1=system error, 2=bugs found (if --fail-on-bugs), 3=score below min_score.
+    """
+    diff_path = Path(diff_file)
     if not diff_path.exists():
-        print(f"Diff file not found: {diff_path}")
-        sys.exit(1)
+        print(f"Error: Diff file not found at {diff_path}")
+        return 1, {"error": "Diff file not found"}
 
     diff_content = diff_path.read_text(encoding="utf-8")
-    if not diff_content.strip():
-        Path("pr_comment.md").write_text("No changes found in the diff.")
-        sys.exit(0)
-        
-    # Optional: Truncate diff if it's too massive for the model context
-    # Groq's llama-3.3-70b-versatile has a very large context, but just in case
-    max_chars = 30000 
-    if len(diff_content) > max_chars:
-        diff_content = diff_content[:max_chars] + "\n... [Diff truncated due to size limit]"
+    out_path = Path(output_md)
 
-    print(f"Analyzing PR diff ({len(diff_content)} chars)...")
+    if not diff_content.strip():
+        out_path.write_text("No changes found in the diff.", encoding="utf-8")
+        if json_summary:
+            Path(json_summary).write_text(json.dumps({"status": "empty_diff", "quality_score": 100, "total_errors": 0}), encoding="utf-8")
+        return 0, {"status": "empty_diff", "quality_score": 100, "total_errors": 0}
+
+    print(f"Parsing PR diff ({len(diff_content)} chars)...")
+    hunks = parse_pr_diff(diff_content)
+    print(f"Extracted {len(hunks)} file modification hunk(s). Running deterministic static analysis...")
     
-    pipeline = PolyMentorPipeline.from_groq()
+    hunk_results = analyze_hunks_static(hunks)
     
+    # Calculate quality metrics
+    total_errors = sum(hr.static_summary.get("total_errors", 0) for hr in hunk_results)
+    supported_hunks = [hr for hr in hunk_results if hr.static_summary.get("supported", False)]
+    avg_score = int(sum(hr.quality_score for hr in supported_hunks) / len(supported_hunks)) if supported_hunks else 100
+
+    print(f"Static analysis complete: Aggregate Quality Score = {avg_score}/100, Total Static Errors = {total_errors}")
+    
+    # Extract AST repo grounding and pack token budget
+    repo_context = extract_pr_repo_context(hunk_results)
+    packed_diff, was_truncated, dropped_files = truncate_diff_budget(hunk_results)
+    
+    if not pipeline:
+        pipeline = PolyMentorPipeline.from_groq()
+
     question = (
-        "You are an expert code reviewer. Please review this pull request diff. "
-        "Identify any bugs, security vulnerabilities, or performance issues. "
-        "Suggest improvements and provide a brief summary of the changes."
+        "You are a senior expert software architect reviewing this pull request diff. "
+        f"{repo_context}\n"
+        "Please review the code changes below. Identify structural bugs, concurrency hazards, "
+        "security vulnerabilities, or architectural degradation. Highlight test gaps and suggest improvements."
     )
     
     result = await pipeline.analyze(
-        code=diff_content,
+        code=packed_diff,
         language="diff",
         level="advanced",
         question=question
     )
 
     if result.status != "ok":
-        Path("pr_comment.md").write_text(f"PolyMentor encountered an error: {result.status}\n{result.answer}")
-        sys.exit(0)
+        err_msg = f"PolyMentor inference error: {result.status}\n{result.answer}"
+        out_path.write_text(err_msg, encoding="utf-8")
+        return 1, {"status": "error", "error": err_msg}
 
-    comment_lines = []
-    comment_lines.append("## 🤖 PolyMentor PR Review\n")
-    comment_lines.append(result.answer)
+    # Generate enterprise markdown report
+    md_comment = generate_pr_comment_md(result, hunk_results, dropped_files)
+    out_path.write_text(md_comment, encoding="utf-8")
+    print(f"Successfully wrote PR markdown review to {out_path.absolute()}")
+
+    summary_data = {
+        "status": "ok",
+        "files_analyzed": len(hunks),
+        "total_static_errors": total_errors,
+        "aggregate_quality_score": avg_score,
+        "model": result.model,
+        "elapsed_ms": result.elapsed_ms,
+        "was_truncated": was_truncated,
+        "dropped_files": dropped_files
+    }
     
-    if result.suspected_bugs:
-        comment_lines.append("\n### 🐛 Suspected Bugs")
-        for bug in result.suspected_bugs:
-            comment_lines.append(f"- {bug}")
-            
-    if result.lesson:
-        comment_lines.append(f"\n### 💡 Key Takeaway\n{result.lesson}")
-        
-    if result.next_steps:
-        comment_lines.append("\n### 🎯 Suggested Action Items")
-        for step in result.next_steps:
-            comment_lines.append(f"- {step}")
-            
-    if result.fixed_code:
-        comment_lines.append(f"\n### ✨ Suggested Fix\n```diff\n{result.fixed_code}\n```")
-        
-    comment_lines.append(f"\n---\n*Analyzed with {result.model} in {result.elapsed_ms:.0f}ms*")
+    if json_summary:
+        Path(json_summary).write_text(json.dumps(summary_data, indent=2), encoding="utf-8")
+        print(f"Wrote machine-readable PR review summary to {json_summary}")
+
+    # Evaluate Quality Gates
+    if fail_on_bugs and total_errors > 0:
+        print(f"Quality Gate Failed: --fail-on-bugs triggered ({total_errors} deterministic static error(s) found).")
+        return 2, summary_data
+    if min_score is not None and avg_score < min_score:
+        print(f"Quality Gate Failed: Aggregate Quality Score ({avg_score}) below threshold ({min_score}).")
+        return 3, summary_data
+
+    return 0, summary_data
+
+
+async def main():
+    parser = argparse.ArgumentParser(description="PolyMentor Automated PR Diff Reviewer & Quality Gate")
+    parser.add_argument("diff_file", help="Path to the unified pull request diff text file")
+    parser.add_argument("--output", "-o", default="pr_comment.md", help="Path to save the generated markdown comment")
+    parser.add_argument("--json-summary", "-j", help="Path to save a machine-readable JSON evaluation summary")
+    parser.add_argument("--fail-on-bugs", action="store_true", help="Exit with code 2 if deterministic static errors are found")
+    parser.add_argument("--min-score", type=float, help="Exit with code 3 if aggregate quality score falls below threshold")
     
-    out_path = Path("pr_comment.md")
-    out_path.write_text("\n".join(comment_lines), encoding="utf-8")
-    print(f"Successfully wrote PR comment to {out_path.absolute()}")
+    args = parser.parse_args()
+    exit_code, _ = await run_pr_review(
+        diff_file=args.diff_file,
+        output_md=args.output,
+        json_summary=args.json_summary,
+        fail_on_bugs=args.fail_on_bugs,
+        min_score=args.min_score
+    )
+    sys.exit(exit_code)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
