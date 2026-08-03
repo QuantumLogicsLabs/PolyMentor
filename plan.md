@@ -85,8 +85,9 @@ Do **not** spend cycles on GPU hosting / hybrid routing until you have free Cola
 ## Implementation order (smallest → highest leverage)
 
 1. **Hybrid `/chat`** — analyzer → context → Groq; expand request schema; update smoke test payload in [`polymentor-daily.yml`](.github/workflows/polymentor-daily.yml).
-2. **CLI one-shot** — `python -m src.inference.tutor_mode` (or new `scripts/review_file.py`) for local “analyze this file with Groq” without the web stack.
+2. [x] **CLI one-shot & batch analyzer** — `scripts/analyze_file.py` implemented with automatic language inference, Git repository root discovery, AST structural grounding, machine-readable JSON mode, quality gate exit codes (`--fail-on-bugs`, `--min-score`), and directory batch scanning.
 3. **`pr-mentor.yml`** — PR diff review bot (Actions + Groq secret).
+
 4. **`ci-triage` step** — attach to existing test job once you add a real `pytest` workflow (currently missing).
 5. **Tree-sitter polish** — only after hybrid chat works; replace weakest regex paths.
 
