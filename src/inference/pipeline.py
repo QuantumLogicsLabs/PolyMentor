@@ -23,9 +23,6 @@ from typing import Iterable, Literal, Optional
 import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
-from src.inference.context_builder import ContextBuilder, RepoContext, PackedPrompt
-from src.inference.repo_parser import RepoParser
-from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
 
 load_dotenv()
 
@@ -67,25 +64,6 @@ LearnerLevel = Literal["beginner", "intermediate", "advanced"]
 DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_LEVEL: LearnerLevel = "beginner"
 DEFAULT_LANGUAGE = "python"
-
-LEVEL_GUIDANCE: dict[LearnerLevel, str] = {
-    "beginner": (
-        "Explain in beginner-friendly language. Use short sentences, define any "
-        "technical term before using it, and prefer tiny examples. Do not jump "
-        "to advanced patterns, clever shortcuts, complex architecture, or "
-        "performance-heavy solutions unless the user explicitly asks for them."
-    ),
-    "intermediate": (
-        "Assume the learner knows basic syntax. Explain the reasoning and tradeoffs, "
-        "but keep the solution practical and avoid advanced architecture or clever "
-        "optimizations unless they are necessary for the question."
-    ),
-    "advanced": (
-        "You may use precise technical language and discuss deeper tradeoffs, but "
-        "still keep the answer focused on the user's question and avoid unnecessary "
-        "over-engineering."
-    ),
-}
 
 
 @dataclass
@@ -181,10 +159,6 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
-        analysis_result: Optional[dict] = None,
-        repo: Optional[RepoContext] = None,
-        repo_root: Optional[str] = None,
-        file_path: Optional[str] = None,
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
@@ -208,35 +182,7 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        if repo is None and (repo_root or file_path or (code and self.repo_parser)):
-            repo = self.repo_parser.extract_repo_context(
-                code=code,
-                language=language,
-                root_dir=repo_root,
-                file_path=file_path,
-            )
-
-        if analysis_result is None and code and code.strip():
-            try:
-                analysis_result = AdvancedCodeAnalyzer.analyze(code, language)
-                if analysis_result.get("supported", False) and "quality_score" not in analysis_result:
-                    analysis_result["quality_score"] = AdvancedCodeAnalyzer.get_quality_score(code, language)
-            except Exception:
-                analysis_result = None
-
-        packed = self.context_builder.build_prompt(
-
-
-            message=message,
-            code=code,
-            language=language,
-            level=level_value,
-            history=history,
-            analysis_result=analysis_result,
-            repo=repo,
-            require_json=True,
-        )
-        messages = packed.messages
+        messages = self._build_messages(message, code, language, level_value, history)
         completion = await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -310,18 +256,39 @@ class PolyMentorPipeline:
         language: str,
         level: LearnerLevel,
         history: Optional[Iterable[ChatMessage | dict[str, str]]],
-        analysis_result: Optional[dict] = None,
-        repo: Optional[RepoContext] = None,
     ) -> list[dict[str, str]]:
-        packed = self.context_builder.build_prompt(
-            message=message,
-            code=code,
-            language=language,
-            level=level,
-            history=history,
-            analysis_result=analysis_result,
-            repo=repo,
-            require_json=True,
+        system = (
+            "You are PolyMentor, a coding tutor chatbot. Your job is to teach "
+            "programming, help users write code, identify likely bugs, explain "
+            "why bugs happen, and guide learners across many programming "
+            "languages. Be practical, friendly, and precise. Do not produce a "
+            "numeric quality score. Prefer teaching and corrected examples over "
+            "judgement. Ask a clarifying question if the task is ambiguous.\n\n"
+            f"Level behavior: {LEVEL_GUIDANCE[level]}\n\n"
+            "You MUST output valid JSON only, using this exact schema:\n"
+            "{\n"
+            '  "answer": "Your detailed explanation or response.",\n'
+            '  "suspected_bugs": ["bug 1", "bug 2"],\n'
+            '  "fixed_code": "The corrected code block (if any)",\n'
+            '  "lesson": "The main takeaway lesson",\n'
+            '  "next_steps": ["step 1", "step 2"]\n'
+            "}"
         )
-        return packed.messages
 
+        user = (
+            f"Learner level: {level}\n"
+            f"Language: {language}\n"
+            f"User request: {message.strip()}\n"
+        )
+        if code.strip():
+            user += f"\nCode:\n```{language}\n{code.strip()}\n```"
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+        if history:
+            for item in history:
+                role = item.role if isinstance(item, ChatMessage) else item.get("role", "user")
+                content = item.content if isinstance(item, ChatMessage) else item.get("content", "")
+                if role in {"user", "assistant"} and content:
+                    messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user})
+        return messages
