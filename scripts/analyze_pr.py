@@ -243,9 +243,9 @@ def generate_pr_comment_md(response, hunk_results: list[HunkAnalysisResult], dro
     avg_score = int(sum(hr.quality_score for hr in supported_hunks) / len(supported_hunks)) if supported_hunks else 100
     
     # Risk assessment badge
-    if total_errors > 5 or avg_score < 60:
+    if total_bugs > 5 or avg_score < 60:
         risk_badge = "🔴 **Critical Risk** — Immediate fixes required before merge."
-    elif total_errors > 0 or avg_score < 80:
+    elif total_bugs > 0 or avg_score < 80:
         risk_badge = "🟡 **Medium Risk** — Review suspected bugs and quality recommendations."
     else:
         risk_badge = "🟢 **Low Risk / Clean** — Code meets quality threshold standards."
