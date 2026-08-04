@@ -196,7 +196,11 @@ class PythonAnalyzer:
     
     @staticmethod
     def _analyze_patterns(code: str, lines: List[str]) -> List[CodeError]:
-        """Pattern-based analysis for Python"""
+        """
+        Pattern-based regex analysis for Python code.
+        Detects security anti-patterns (e.g. dynamic eval/exec execution), wildcard imports,
+        bare except handlers, global scopes, and mutable default arguments.
+        """
         errors = []
         
         # Unsafe eval/exec usage
