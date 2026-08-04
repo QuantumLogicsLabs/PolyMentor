@@ -99,3 +99,75 @@ def test_ground_failure_with_source_code():
         assert "tests/test_sample.py" in grounding_out
         assert "failing assertion" in grounding_out
         assert "--> 20:" in grounding_out
+
+
+def test_generate_triage_comment_md():
+    report = PytestReport(
+        total_failures=2,
+        total_errors=0,
+        raw_log_length=4500,
+        failed_tests=[
+            FailedTest(name="test_login", file_path="tests/test_auth.py", exception_type="AssertionError", message="Expected 200 got 403")
+        ]
+    )
+    comment = generate_triage_comment_md(
+        report=report,
+        ai_summary="The login authentication token expiration check failed.",
+        suspected_bugs=["Token validation ttl logic exceeds window"],
+        next_steps=["Update auth.py line 12 with standard 3600s TTL"],
+        lesson="Always mock datetime in unit tests.",
+        model_name="llama-3.3-70b-versatile",
+        elapsed_ms=412.5
+    )
+    assert "🔴 **Test Suite Regression**" in comment
+    assert "Test Suite Failure Scorecard" in comment
+    assert "| **Runtime Test Failures** | **2** |" in comment
+    assert "test_login" in comment
+    assert "Expected 200 got 403" in comment
+    assert "Senior AI Mentor Analysis" in comment
+    assert "Minimal Actionable Remediation Steps" in comment
+
+
+@pytest.mark.asyncio
+async def test_run_pytest_triage_with_mock_pipeline():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root_path = Path(tmp_dir)
+        log_file = root_path / "pytest_output.txt"
+        log_file.write_text(SAMPLE_PYTEST_LOG, encoding="utf-8")
+        
+        out_md = root_path / "comment.md"
+        out_json = root_path / "summary.json"
+        
+        with patch.dict(os.environ, {"GROQ_API_KEY": "mock_test_key_for_ci"}):
+            with patch("scripts.triage_pytest_failure.PolyMentorPipeline.from_groq") as mock_from_groq:
+                mock_pipe = AsyncMock()
+                mock_from_groq.return_value = mock_pipe
+                
+                class MockMentorResponse:
+                    status = "ok"
+                    answer = "Root cause analysis summary"
+                    suspected_bugs = ["Missing slowapi dependency in dev environment"]
+                    next_steps = ["Add slowapi to pyproject.toml optional deps"]
+                    lesson = "Always verify package dependencies before running api tests."
+                    model = "llama-3.3-70b-versatile-mock"
+                    elapsed_ms = 150.0
+                    
+                mock_pipe.analyze.return_value = MockMentorResponse()
+                
+                exit_code = await run_pytest_triage(
+                    log_file=str(log_file),
+                    output_path=str(out_md),
+                    json_summary=str(out_json),
+                    repo_root=str(root_path),
+                )
+                assert exit_code == 0
+                assert out_md.exists()
+                md_content = out_md.read_text(encoding="utf-8")
+                assert "Root cause analysis summary" in md_content
+                assert "Missing slowapi dependency" in md_content
+                
+                assert out_json.exists()
+                json_data = json.loads(out_json.read_text(encoding="utf-8"))
+                assert json_data["total_failures"] == 1
+                assert json_data["total_errors"] == 1
+                assert json_data["triage_success"] is True
