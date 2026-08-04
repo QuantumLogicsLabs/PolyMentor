@@ -314,100 +314,142 @@ def generate_triage_comment_md(
     return "\n".join(lines)
 
 
-async def main() -> None:
+async def run_pytest_triage(
+    log_file: str,
+    output_path: str = "pytest_triage_comment.md",
+    json_summary: Optional[str] = None,
+    repo_root: Optional[str] = None,
+    fail_on_error: bool = False,
+) -> int:
+    out_file = Path(output_path)
+    log_p = Path(log_file)
+    
+    if not log_p.exists():
+        msg = f"Log file `{log_file}` not found."
+        write_comment(f"## 🧪 PolyMentor Pytest Triage\n\n> [!ERROR]\n> {msg}", out_file)
+        return 1 if fail_on_error else 0
 
-    if len(sys.argv) < 2:
-        write_comment(
-            "## PolyMentor pytest triage\n\n"
-            "Triage unavailable: no pytest log path was provided."
-        )
-        return
+    raw_text = log_p.read_text(encoding="utf-8", errors="replace")
+    if not raw_text.strip():
+        msg = "Pytest execution log was empty."
+        write_comment(f"## 🧪 PolyMentor Pytest Triage\n\n> [!NOTE]\n> {msg}", out_file)
+        return 0
 
-    log_path = Path(sys.argv[1])
-    if not log_path.exists():
-        write_comment(
-            "## PolyMentor pytest triage\n\n"
-            f"Triage unavailable: log file not found (`{log_path}`)."
-        )
-        return
-
-    log_content = log_path.read_text(encoding="utf-8", errors="replace")
-    if not log_content.strip():
-        write_comment(
-            "## PolyMentor pytest triage\n\n"
-            "Triage unavailable: pytest log was empty."
-        )
-        return
-
-    if len(log_content) > MAX_CHARS:
-        log_content = (
-            log_content[:MAX_CHARS] + "\n... [Log truncated due to size limit]"
-        )
-
+    # 1. Parse structured metrics
+    report = parse_pytest_log(raw_text)
+    
+    # 2. Extract grounded repository context
+    source_context = ground_failure_with_source_code(report, repo_root=repo_root)
+    
+    # 3. Truncate log intelligently if needed
+    trimmed_log, was_truncated = extract_critical_traceback_tail(raw_text, max_chars=MAX_CHARS)
+    
+    ai_summary = None
+    suspected_bugs = []
+    next_steps = []
+    lesson = None
+    model_name = "local-diagnostic"
+    elapsed_ms = 0.0
+    error_msg = None
+    
     if not os.getenv("GROQ_API_KEY"):
-        write_comment(
-            "## PolyMentor pytest triage\n\n"
-            "Triage unavailable: `GROQ_API_KEY` is not set in repository secrets."
-        )
-        return
+        error_msg = "`GROQ_API_KEY` is not configured in environment secrets"
+        if fail_on_error:
+            print("ERROR: GROQ_API_KEY not set and --fail-on-triage-error specified.", file=sys.stderr)
+            return 1
+    else:
+        print(f"Executing deep AI triage on pytest log ({len(raw_text)} chars, {len(report.failed_tests)} identified test failures)...")
+        try:
+            pipeline = PolyMentorPipeline.from_groq()
+            question = (
+                "You are a Principal Software Reliability Engineer and expert CI Triage Mentor. "
+                "Analyze this pytest failure report and grounded repository source code. Identify:\n"
+                "1. The underlying architectural root cause of the failures/errors.\n"
+                "2. Whether this represents a logic regression, a collection/import dependency bug, or a flaky environment issue.\n"
+                "3. Concrete, minimal drop-in code fix steps to turn the test suite green.\n"
+                "Be decisive, technical, and precise in your guidance."
+            )
+            
+            full_payload = f"=== PYTEST LOG EXECUTION TAIL ===\n{trimmed_log}\n\n=== REPOSITORY SOURCE GROUNDING ===\n{source_context}"
+            
+            result = await pipeline.analyze(
+                code=full_payload,
+                language="python",
+                level="advanced",
+                question=question,
+            )
+            
+            if result.status == "ok":
+                ai_summary = result.answer
+                suspected_bugs = result.suspected_bugs
+                next_steps = result.next_steps
+                lesson = result.lesson
+                model_name = result.model
+                elapsed_ms = result.elapsed_ms
+            else:
+                error_msg = f"Pipeline returned status: {result.status}"
+                if fail_on_error:
+                    return 1
+        except Exception as exc:
+            error_msg = f"{type(exc).__name__}: {exc}"
+            print(f"AI triage execution failed: {error_msg}", file=sys.stderr)
+            if fail_on_error:
+                return 1
 
-    print(f"Triaging pytest failure log ({len(log_content)} chars)...")
-
-    try:
-        pipeline = PolyMentorPipeline.from_groq()
-        question = (
-            "You are an expert CI failure triage engineer. Analyze this pytest "
-            "failure log from the PolyMentor repository. Identify the most likely "
-            "root cause, the files or tests involved, whether this looks like a "
-            "real regression vs a flaky/environment issue, and give a short list "
-            "of minimal fix steps. Be concrete and concise. Use markdown headings "
-            "and bullet lists."
-        )
-        result = await pipeline.analyze(
-            code=log_content,
-            language="python",
-            level="advanced",
-            question=question,
-        )
-    except Exception as exc:  # noqa: BLE001 — never fail the CI job from triage
-        write_comment(
-            "## PolyMentor pytest triage\n\n"
-            f"Triage unavailable: {type(exc).__name__}: {exc}"
-        )
-        return
-
-    if result.status != "ok":
-        write_comment(
-            "## PolyMentor pytest triage\n\n"
-            f"Triage unavailable: pipeline status `{result.status}`.\n\n"
-            f"{result.answer or ''}"
-        )
-        return
-
-    lines = [
-        "## PolyMentor pytest fail triage",
-        "",
-        result.answer or "_No triage summary returned._",
-    ]
-
-    if result.suspected_bugs:
-        lines.append("\n### Suspected issues")
-        for bug in result.suspected_bugs:
-            lines.append(f"- {bug}")
-
-    if result.next_steps:
-        lines.append("\n### Suggested fix steps")
-        for step in result.next_steps:
-            lines.append(f"- {step}")
-
-    if result.lesson:
-        lines.append(f"\n### Key takeaway\n{result.lesson}")
-
-    lines.append(
-        f"\n---\n*Triaged with {result.model} in {result.elapsed_ms:.0f}ms*"
+    # 4. Generate Enterprise PR Comment
+    comment_md = generate_triage_comment_md(
+        report=report,
+        ai_summary=ai_summary,
+        suspected_bugs=suspected_bugs,
+        next_steps=next_steps,
+        lesson=lesson,
+        model_name=model_name,
+        elapsed_ms=elapsed_ms,
+        error_msg=error_msg
     )
-    write_comment("\n".join(lines))
+    write_comment(comment_md, out_file)
+    
+    # 5. Output JSON Summary if requested
+    if json_summary:
+        json_p = Path(json_summary)
+        summary_data = {
+            "total_failures": report.total_failures,
+            "total_errors": report.total_errors,
+            "failed_tests": [
+                {"name": f.name, "file": f.file_path, "line": f.line_number, "exception": f.exception_type}
+                for f in report.failed_tests
+            ],
+            "model_name": model_name,
+            "elapsed_ms": elapsed_ms,
+            "triage_success": error_msg is None,
+            "error": error_msg
+        }
+        json_p.write_text(json.dumps(summary_data, indent=2), encoding="utf-8")
+        print(f"Wrote machine-readable triage summary to {json_p.absolute()}")
 
+    return 0
+
+
+async def main() -> None:
+    parser = argparse.ArgumentParser(description="PolyMentor Pytest Failure CI Triage Bot")
+    parser.add_argument("log_path", help="Path to pytest output console log")
+    parser.add_argument("--output", "-o", default="pytest_triage_comment.md", help="Destination markdown comment path")
+    parser.add_argument("--json-summary", "-j", default=None, help="Optional JSON diagnostic metrics output file")
+    parser.add_argument("--repo-root", "-r", default=None, help="Root path of repository workspace")
+    parser.add_argument("--fail-on-triage-error", action="store_true", help="Return non-zero exit code if AI triage pipeline errors out")
+    
+    args = parser.parse_args()
+    exit_code = await run_pytest_triage(
+        log_file=args.log_path,
+        output_path=args.output,
+        json_summary=args.json_summary,
+        repo_root=args.repo_root,
+        fail_on_error=args.fail_on_triage_error,
+    )
+    if exit_code != 0:
+        sys.exit(exit_code)
+    
 
 if __name__ == "__main__":
     asyncio.run(main())
+
