@@ -128,11 +128,11 @@ def _normalize_level(level: str | None) -> LearnerLevel:
 
 class PolyMentorPipeline:
     """
-    Groq-backed coding mentor.
+    Groq-backed coding mentor with deterministic hybrid grounding and AST repository context.
 
-    Use chat() for normal chatbot turns and analyze() when you have code plus a
-    debugging/teaching question. analyze() is kept as a compatibility alias for
-    older integrations, but it now returns a MentorResponse instead of scores.
+    Use chat() for conversational mentoring and debugger walkthroughs; it automatically invokes
+    static analysis grounding when code snippets are provided and synthesizes workspace symbols
+    when repo_root or file_path coordinates are supplied.
     """
 
     def __init__(
