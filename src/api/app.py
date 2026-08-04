@@ -28,6 +28,7 @@ from src.learning.concept_guide import CONCEPT_LIBRARY, get_concept_explanation,
 from src.reasoning_engine.hint_system import HintSystem
 from src.reasoning_engine.feedback_scorer import FeedbackScorer
 from src.inference.pipeline import PolyMentorPipeline
+from src.inference.context_builder import ContextBuilder
 
 
 # ============================================================================
@@ -76,8 +77,6 @@ class ChatRequest(BaseModel):
     )
     repo_root: Optional[str] = Field(default=None, description="Repository workspace root directory path")
     file_path: Optional[str] = Field(default=None, description="Relative path of the analyzed file in the repository")
-
-
 
 
 class ChatResponse(BaseModel):
