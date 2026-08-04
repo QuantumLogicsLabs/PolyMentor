@@ -122,11 +122,16 @@ def analyze_hunks_static(hunks: list[DiffHunk]) -> list[HunkAnalysisResult]:
         summary = analyzer.analyze(hunk.added_code, hunk.language)
         errors_count = summary.get("total_errors", 0)
         score = summary.get("quality_score", 100)
+        actionable_bugs = (
+            summary.get("critical_count", 0)
+            + summary.get("high_count", 0)
+            + summary.get("medium_count", 0)
+        )
         
         results.append(HunkAnalysisResult(
             hunk=hunk,
             static_summary=summary,
-            has_bugs=errors_count > 0,
+            has_bugs=actionable_bugs > 0,
             quality_score=score
         ))
         
