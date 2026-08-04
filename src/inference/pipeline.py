@@ -191,6 +191,13 @@ class PolyMentorPipeline:
                 file_path=file_path,
             )
 
+        if code.strip() and analysis_result is None:
+            try:
+                from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
+                analysis_result = AdvancedCodeAnalyzer.analyze(code, language)
+            except Exception:
+                analysis_result = None
+
         packed = self.context_builder.build_prompt(
             message=message,
             code=code,
