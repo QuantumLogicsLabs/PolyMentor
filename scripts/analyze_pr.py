@@ -252,7 +252,7 @@ def generate_pr_comment_md(response, hunk_results: list[HunkAnalysisResult], dro
         
     lines.append(f"### 🛡️ Risk & Quality Assessment\n{risk_badge}\n")
     lines.append(f"- **Aggregate Quality Score:** `{avg_score}/100`")
-    lines.append(f"- **Deterministic Bug Findings:** `{total_errors} issue(s)` across `{len(hunk_results)} file(s)` analyzed.\n")
+    lines.append(f"- **Deterministic Bug Findings:** `{total_bugs} issue(s)` across `{len(hunk_results)} file(s)` analyzed.\n")
     
     # Static Analysis Table
     if supported_hunks:
@@ -260,12 +260,16 @@ def generate_pr_comment_md(response, hunk_results: list[HunkAnalysisResult], dro
         lines.append("| File Path | Language | Quality Score | Static Errors | Status |")
         lines.append("| :--- | :---: | :---: | :---: | :---: |")
         for hr in hunk_results:
-            err_count = hr.static_summary.get("total_errors", 0)
-            status_icon = "❌ Failed" if err_count > 0 else "✅ Passed"
+            err_count = (
+                hr.static_summary.get("critical_count", 0)
+                + hr.static_summary.get("high_count", 0)
+                + hr.static_summary.get("medium_count", 0)
+            ) if "critical_count" in hr.static_summary else hr.static_summary.get("total_errors", 0)
+            status_icon = "❌ Failed" if hr.has_bugs else "✅ Passed"
             lines.append(f"| `{hr.hunk.file_path}` | `{hr.hunk.language}` | `{hr.quality_score}/100` | `{err_count}` | {status_icon} |")
         lines.append("")
 
-    if total_errors > 0:
+    if total_bugs > 0:
         lines.append("### 🐛 Deterministic Static Analysis Findings\n")
         for hr in hunk_results:
             errors = hr.static_summary.get("errors", [])
