@@ -199,6 +199,15 @@ class PythonAnalyzer:
         """Pattern-based analysis for Python"""
         errors = []
         
+        # Unsafe eval/exec usage
+        if re.search(r"\b(?:eval|exec)\s*\(", code):
+            errors.append(CodeError(
+                category=ErrorCategory.SECURITY,
+                severity=ErrorSeverity.CRITICAL,
+                message="Unsafe eval/exec function usage detected",
+                suggestion="Avoid evaluating untrusted code strings dynamically"
+            ))
+        
         # Wildcard imports
         if re.search(r"^\s*from\s+\S+\s+import\s+\*", code, re.MULTILINE):
             errors.append(CodeError(
