@@ -105,6 +105,9 @@ def analyze_hunks_static(hunks: list[DiffHunk]) -> list[HunkAnalysisResult]:
     """
     Runs deterministic static analysis on newly added code in PR diff hunks.
     Provides instant verification and grounding before calling LLM inference.
+    
+    Filters out minor low-severity style nits when determining `has_bugs`, only asserting
+    actionable bug status when critical, high, or medium severity issues are present.
     """
     analyzer = AdvancedCodeAnalyzer()
     results = []
