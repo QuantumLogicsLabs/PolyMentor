@@ -23,8 +23,18 @@ from typing import Iterable, Literal, Optional
 import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
-from src.inference.context_builder import ContextBuilder, LEVEL_GUIDANCE, RepoContext
+try:
+
+    from src.inference.context_builder import ContextBuilder, LEVEL_GUIDANCE, RepoContext
+except ImportError:
+    from src.inference.context_builder import ContextBuilder, RepoContext
+    LEVEL_GUIDANCE = {
+        "beginner": "Provide foundational step-by-step explanations, avoiding dense jargon and using practical real-world analogies.",
+        "intermediate": "Focus on algorithmic efficiency, language idioms, clean patterns, and standard edge-case avoidance.",
+        "advanced": "Focus on systems architecture, low-level execution semantics, concurrency performance, and security hardening.",
+    }
 from src.inference.repo_parser import RepoParser
+
 
 
 load_dotenv()
@@ -229,11 +239,12 @@ class PolyMentorPipeline:
             lesson=parsed.get("lesson"),
             next_steps=parsed.get("next_steps", []),
             elapsed_ms=(time.perf_counter() - started) * 1000,
-            grounded=packed.grounding_enabled,
-            token_utilization_pct=telemetry["utilization_pct"],
-            truncated_code=packed.truncated_code,
-            dropped_turns=packed.dropped_turns,
+            grounded=getattr(packed, "grounding_enabled", False),
+            token_utilization_pct=telemetry.get("utilization_pct", 0.0) if isinstance(telemetry, dict) else 0.0,
+            truncated_code=getattr(packed, "truncated_code", False),
+            dropped_turns=getattr(packed, "dropped_turns", 0),
             static_analysis_summary={
+
                 "total_errors": analysis_result.get("total_errors", 0),
                 "quality_score": analysis_result.get("quality_score"),
                 "errors": [
