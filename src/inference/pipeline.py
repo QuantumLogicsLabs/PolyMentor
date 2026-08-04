@@ -183,8 +183,13 @@ class PolyMentorPipeline:
         language = _normalize_language(language)
         level_value = _normalize_level(level)
 
-        if repo_root and not repo:
-            repo = self.repo_parser.extract_repo_context(code=code, language=language, root_dir=str(repo_root))
+        if (repo_root or file_path) and not repo:
+            repo = self.repo_parser.extract_repo_context(
+                code=code,
+                language=language,
+                root_dir=str(repo_root) if repo_root else None,
+                file_path=file_path,
+            )
 
         packed = self.context_builder.build_prompt(
             message=message,
