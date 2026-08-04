@@ -86,8 +86,9 @@ Do **not** spend cycles on GPU hosting / hybrid routing until you have free Cola
 
 ## Implementation order (smallest → highest leverage)
 
-1. **Hybrid `/chat`** — analyzer → context → Groq; expand request schema; update smoke test payload in [`polymentor-daily.yml`](.github/workflows/polymentor-daily.yml).
+1. [x] **Hybrid `/chat`** — analyzer → context → Groq; expand request schema; update smoke test payload in [`polymentor-daily.yml`](.github/workflows/polymentor-daily.yml).
 2. [x] **CLI one-shot & batch analyzer** — `scripts/analyze_file.py` implemented with automatic language inference, Git repository root discovery, AST structural grounding, machine-readable JSON mode, quality gate exit codes (`--fail-on-bugs`, `--min-score`), and directory batch scanning.
+
 3. [x] **`pr-mentor.yml` & PR review bot** — Automated PR diff review implemented in `scripts/analyze_pr.py` and `.github/workflows/pr-mentor.yml` with multi-file diff hunk parsing, deterministic static analysis bug detection, AST structural grounding, quality scorecards, risk assessment badges, prioritized token budget pruning, and CI artifact archiving.
 4. [x] **`pytest.yml` & `triage_pytest_failure.py` CI Triage Bot** — Automated test failure analysis implemented with structured regex diagnostic parsing, critical traceback tail preservation, AST source code grounding via `RepoParser`, diagnosis scorecards, machine-readable JSON outputs, and `pull_request_target` permissions for secure PR commenting and artifact archiving.
 
