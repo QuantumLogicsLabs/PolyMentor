@@ -18,7 +18,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Iterable, Literal, Optional
+from typing import Any, Iterable, Literal, Optional
 
 import json
 from dotenv import load_dotenv
@@ -176,6 +176,8 @@ class PolyMentorPipeline:
         analysis_result: Optional[dict] = None,
         repo: Optional[RepoContext] = None,
         repo_root: Optional[str | Path] = None,
+        file_path: Optional[str] = None,
+        **_kwargs: Any,
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
