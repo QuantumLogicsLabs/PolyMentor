@@ -147,10 +147,78 @@ def extract_critical_traceback_tail(log_text: str, max_chars: int = 25000) -> tu
     return f"{header}{notice}{tail}", True
 
 
-def write_comment(body: str) -> None:
+def ground_failure_with_source_code(report: PytestReport, repo_root: Optional[str] = None, max_files: int = 4) -> str:
+    """
+    Correlates failing test locations from the pytest diagnostic report with real repository source code.
+    Reads test snippets and extracts structural AST symbols from dependent application modules
+    to provide deep root-cause grounding for the AI triage engine.
+    """
+    if not report.failed_tests:
+        return "Source code grounding: No specific failing test file paths identified in summary."
 
-    OUT_PATH.write_text(body.strip() + "\n", encoding="utf-8")
-    print(f"Wrote triage comment to {OUT_PATH.absolute()}")
+    if not repo_root:
+        cwd = Path.cwd()
+        if (cwd / "tests").exists() or (cwd / "src").exists() or (cwd / "pyproject.toml").exists():
+            repo_root = str(cwd)
+            
+    if not repo_root or not Path(repo_root).exists():
+        return "Source code grounding: Repository workspace root not found."
+
+    context_parts = [f"Repository Source Code Grounding (Workspace: {Path(repo_root).name}):"]
+    seen_files = set()
+    files_processed = 0
+
+    try:
+        parser = RepoParser()
+        for test_item in report.failed_tests:
+            if files_processed >= max_files:
+                context_parts.append(f"\n... [Remaining {len(report.failed_tests) - max_files} failed test files omitted from deep source inspection for context economy]")
+                break
+
+            file_p = Path(repo_root) / test_item.file_path
+            if str(file_p) in seen_files:
+                continue
+            seen_files.add(str(file_p))
+            
+            if file_p.exists() and file_p.is_file():
+                files_processed += 1
+                context_parts.append(f"\n--- Grounded Source: {test_item.file_path} (Exception: {test_item.exception_type}) ---")
+                
+                try:
+                    content_lines = file_p.read_text(encoding="utf-8", errors="replace").splitlines()
+                    # If line number is known, extract around the failure point (±25 lines)
+                    if test_item.line_number and 1 <= test_item.line_number <= len(content_lines):
+                        start_idx = max(0, test_item.line_number - 25)
+                        end_idx = min(len(content_lines), test_item.line_number + 15)
+                        snippet_lines = content_lines[start_idx:end_idx]
+                        context_parts.append(f"Snippet around line {test_item.line_number}:")
+                        for idx, l_text in enumerate(snippet_lines, start=start_idx + 1):
+                            prefix = "--> " if idx == test_item.line_number else "    "
+                            context_parts.append(f"{prefix}{idx}: {l_text}")
+                    else:
+                        # Otherwise include first 60 lines of test file
+                        context_parts.append("File preview (first 60 lines):")
+                        context_parts.extend(content_lines[:60])
+                        
+                    # Extract AST dependencies using RepoParser
+                    summary = parser.extract_repo_context(str(file_p), repo_root)
+                    if summary and summary.get("related_files"):
+                        rel_list = [str(rf) for rf in summary["related_files"][:3]]
+                        context_parts.append("Dependent workspace modules: " + ", ".join(rel_list))
+                        
+                except Exception as read_err:
+                    context_parts.append(f"Could not read source file snippet: {read_err}")
+
+        return "\n".join(context_parts)
+    except Exception as e:
+        return f"Source code grounding skipped due to exception: {str(e)}"
+
+
+def write_comment(body: str, out_path: Optional[Path] = None) -> None:
+    target = out_path or OUT_PATH
+    target.write_text(body.strip() + "\n", encoding="utf-8")
+    print(f"Wrote triage comment to {target.absolute()}")
+
 
 
 
