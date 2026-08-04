@@ -109,10 +109,49 @@ def parse_pytest_log(log_text: str) -> PytestReport:
     return report
 
 
+def extract_critical_traceback_tail(log_text: str, max_chars: int = 25000) -> tuple[str, bool]:
+    """
+    Intelligently extracts the most relevant diagnostic sections of a pytest execution log.
+    When logs exceed token budgets, standard top-truncation clips off tracebacks and test summaries
+    that appear at the end of output. This function prioritizes retaining the tail summary and error stack traces.
+
+    Returns:
+        tuple: (processed_log_text, was_truncated)
+    """
+    if len(log_text) <= max_chars:
+        return log_text, False
+
+    lines = log_text.splitlines(keepends=True)
+    
+    # Always try to keep the first 50 lines (test command setup, pytest environment, plugins)
+    header = "".join(lines[:50])
+    
+    # Calculate budget remaining for the tail
+    tail_budget = max_chars - len(header) - 100  # reserve space for truncation notice
+    if tail_budget < 1000:
+        return log_text[-max_chars:], True  # fallback to pure tail slice if header is massive
+
+    # Collect lines from the bottom up until tail_budget is reached
+    tail_lines = []
+    current_len = 0
+    for line in reversed(lines[50:]):
+        if current_len + len(line) <= tail_budget:
+            tail_lines.append(line)
+            current_len += len(line)
+        else:
+            break
+            
+    tail = "".join(reversed(tail_lines))
+    
+    notice = "\n... [Mid-section of pytest log omitted to preserve critical test failure tracebacks within token budget] ...\n\n"
+    return f"{header}{notice}{tail}", True
+
+
 def write_comment(body: str) -> None:
 
     OUT_PATH.write_text(body.strip() + "\n", encoding="utf-8")
     print(f"Wrote triage comment to {OUT_PATH.absolute()}")
+
 
 
 async def main() -> None:
