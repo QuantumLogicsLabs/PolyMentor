@@ -72,7 +72,7 @@ class FeedbackScorer:
         # Adjust based on hint length (too long or too short both penalized)
         hint_len = len(hint_text.split())
         if hint_len < 5:  # Too short, not helpful
-            base_score -= 20
+            base_score -= 25
         elif hint_len > 100:  # Too long, overwhelming
             base_score -= 15
         
@@ -215,7 +215,7 @@ class FeedbackScorer:
             "total_sessions": perf["total_sessions"],
             "problems_solved": perf["solved_count"],
             "success_rate": round(solved_rate, 2),
-            "error_types_encountered": len(perf["error_types"]),
+            "error_types_encountered": list(perf["error_types"].keys()),
             "most_common_error": max(perf["error_types"].items(), key=lambda x: x[1]["encountered"])[0] if perf["error_types"] else None,
             "performance_data": perf["error_types"]
         }

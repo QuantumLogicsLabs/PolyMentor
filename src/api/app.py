@@ -65,13 +65,18 @@ pipeline = PolyMentorPipeline()
 class ChatRequest(BaseModel):
     """Request for chatbot interaction"""
     message: str = Field(..., max_length=2000, description="User message or question")
+    code: Optional[str] = Field(default=None, max_length=15000, description="Optional code snippet for review or discussion")
+    language: str = Field(default="python", max_length=50, description="Programming language")
     level: Literal["beginner", "intermediate", "advanced"] = Field(
         default="beginner",
         description="Learner skill level"
     )
-    code: Optional[str] = Field(default=None, max_length=10000, description="Optional code context")
-    language: Optional[str] = Field(default=None, max_length=50, description="Optional programming language")
-    history: Optional[list] = Field(default=None, description="Optional chat history")
+    history: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Prior conversational history turns [{role: ..., content: ...}]"
+    )
+    repo_root: Optional[str] = Field(default=None, description="Repository workspace root directory path")
+    file_path: Optional[str] = Field(default=None, description="Relative path of the analyzed file in the repository")
 
 
 class ChatResponse(BaseModel):
@@ -86,6 +91,11 @@ class ChatResponse(BaseModel):
     lesson: Optional[str] = None
     next_steps: list = Field(default_factory=list)
     elapsed_ms: float
+    grounded: bool = Field(default=False, description="Whether static analysis grounding was active")
+    token_utilization_pct: float = Field(default=0.0, description="Percentage of token prompt budget consumed")
+    static_analysis_summary: Optional[dict] = Field(default=None, description="Deterministic static analysis findings used for response grounding")
+
+
 
 
 class AnalyzeRequest(BaseModel):
@@ -658,22 +668,18 @@ async def chat(request: Request, payload: ChatRequest):
     - Adaptive learning guidance
     """
     try:
-        # Build analyzer context if code is provided
-        analyzer_context = ""
-        if payload.code:
-            language = payload.language or "python"
-            analyzer_context = ContextBuilder.build_analyzer_context(payload.code, language)
-
         response = await pipeline.chat(
             message=payload.message,
-            level=payload.level,
             code=payload.code or "",
-            language=payload.language or "python",
+            language=payload.language,
+            level=payload.level,
             history=payload.history,
-            analyzer_context=analyzer_context
+            repo_root=payload.repo_root,
+            file_path=payload.file_path,
         )
         
         if response.status == "missing_groq_api_key":
+
             raise HTTPException(status_code=500, detail="Missing Groq API Key")
     
         return {
@@ -687,7 +693,12 @@ async def chat(request: Request, payload: ChatRequest):
             "lesson": response.lesson,
             "next_steps": response.next_steps,
             "elapsed_ms": response.elapsed_ms,
+            "grounded": response.grounded,
+            "token_utilization_pct": response.token_utilization_pct,
+            "static_analysis_summary": response.static_analysis_summary,
         }
+
+
     except Exception as e:
         if isinstance(e, HTTPException):
             raise

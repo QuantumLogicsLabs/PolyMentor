@@ -1,11 +1,11 @@
 """
 src/inference/pipeline.py
 -------------------------
-Public inference entrypoint for PolyMentor.
+Public context-aware inference entrypoint for PolyMentor.
 
-PolyMentor is now a Groq-powered coding tutor chatbot. It teaches programming,
-helps write code, reviews snippets, and explains likely bugs across multiple
-languages. It does not depend on local model checkpoints or quality scoring.
+PolyMentor is an AI coding tutor and mentor powered by Groq and static analysis grounding.
+It seamlessly incorporates multi-turn conversational history, skill level pedagogical adaptation
+(beginner, intermediate, advanced), multi-language normalization, and code token budgeting.
 
 Environment:
     GROQ_API_KEY   Required for Groq responses.
@@ -24,9 +24,21 @@ import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
 
-from src.inference.prompt_pack import PromptPack
-
 load_dotenv()
+
+
+
+__all__ = [
+    "LearnerLevel",
+    "ChatMessage",
+    "MentorResponse",
+    "PolyMentorPipeline",
+    "DEFAULT_MODEL",
+    "DEFAULT_LEVEL",
+    "DEFAULT_LANGUAGE",
+]
+
+
 
 SUPPORTED_LANGUAGES = {
     "python",
@@ -72,6 +84,13 @@ class MentorResponse:
     lesson: Optional[str] = None
     next_steps: list[str] = field(default_factory=list)
     elapsed_ms: float = 0.0
+    grounded: bool = False
+    token_utilization_pct: float = 0.0
+    truncated_code: bool = False
+    dropped_turns: int = 0
+    static_analysis_summary: Optional[dict] = None
+
+
 
 
 def _normalize_language(language: str | None) -> str:
@@ -108,12 +127,17 @@ class PolyMentorPipeline:
         api_key: Optional[str] = None,
         temperature: float = 0.25,
         max_tokens: int = 1800,
+        context_builder: Optional[ContextBuilder] = None,
+        repo_parser: Optional[RepoParser] = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
         self._client = AsyncGroq(api_key=self.api_key) if self.api_key else None
+        self.context_builder = context_builder or ContextBuilder()
+        self.repo_parser = repo_parser or RepoParser()
+
 
     @classmethod
     def from_groq(
@@ -135,7 +159,6 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
-        analyzer_context: str = "",
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
@@ -159,15 +182,7 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        messages = PromptPack.build_messages(
-            message=message,
-            code=code,
-            language=language,
-            level=level_value,
-            history=history,
-            analyzer_context=analyzer_context
-        )
-        
+        messages = self._build_messages(message, code, language, level_value, history)
         completion = await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -182,6 +197,7 @@ class PolyMentorPipeline:
         except json.JSONDecodeError:
             parsed = {"answer": content}
 
+        telemetry = self.context_builder.inspect_prompt_budget(packed)
         return MentorResponse(
             status="ok",
             answer=parsed.get("answer", ""),
@@ -193,7 +209,27 @@ class PolyMentorPipeline:
             lesson=parsed.get("lesson"),
             next_steps=parsed.get("next_steps", []),
             elapsed_ms=(time.perf_counter() - started) * 1000,
+            grounded=packed.grounding_enabled,
+            token_utilization_pct=telemetry["utilization_pct"],
+            truncated_code=packed.truncated_code,
+            dropped_turns=packed.dropped_turns,
+            static_analysis_summary={
+                "total_errors": analysis_result.get("total_errors", 0),
+                "quality_score": analysis_result.get("quality_score"),
+                "errors": [
+                    {
+                        "category": e.get("category"),
+                        "severity": e.get("severity"),
+                        "line": e.get("line"),
+                        "message": e.get("message"),
+                        "suggestion": e.get("suggestion")
+                    }
+                    for e in analysis_result.get("errors", [])[:5]
+                ]
+            } if analysis_result and analysis_result.get("supported", False) else None,
         )
+
+
 
     async def analyze(
         self,
@@ -201,10 +237,58 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         question: str = "Review this code, identify likely bugs, teach the concept, and suggest a fix.",
+        analysis_result: Optional[dict] = None,
+        repo: Optional[RepoContext] = None,
     ) -> MentorResponse:
         return await self.chat(
             message=question,
             code=code,
             language=language,
             level=level,
+            analysis_result=analysis_result,
+            repo=repo,
         )
+
+    def _build_messages(
+        self,
+        message: str,
+        code: str,
+        language: str,
+        level: LearnerLevel,
+        history: Optional[Iterable[ChatMessage | dict[str, str]]],
+    ) -> list[dict[str, str]]:
+        system = (
+            "You are PolyMentor, a coding tutor chatbot. Your job is to teach "
+            "programming, help users write code, identify likely bugs, explain "
+            "why bugs happen, and guide learners across many programming "
+            "languages. Be practical, friendly, and precise. Do not produce a "
+            "numeric quality score. Prefer teaching and corrected examples over "
+            "judgement. Ask a clarifying question if the task is ambiguous.\n\n"
+            f"Level behavior: {LEVEL_GUIDANCE[level]}\n\n"
+            "You MUST output valid JSON only, using this exact schema:\n"
+            "{\n"
+            '  "answer": "Your detailed explanation or response.",\n'
+            '  "suspected_bugs": ["bug 1", "bug 2"],\n'
+            '  "fixed_code": "The corrected code block (if any)",\n'
+            '  "lesson": "The main takeaway lesson",\n'
+            '  "next_steps": ["step 1", "step 2"]\n'
+            "}"
+        )
+
+        user = (
+            f"Learner level: {level}\n"
+            f"Language: {language}\n"
+            f"User request: {message.strip()}\n"
+        )
+        if code.strip():
+            user += f"\nCode:\n```{language}\n{code.strip()}\n```"
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+        if history:
+            for item in history:
+                role = item.role if isinstance(item, ChatMessage) else item.get("role", "user")
+                content = item.content if isinstance(item, ChatMessage) else item.get("content", "")
+                if role in {"user", "assistant"} and content:
+                    messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user})
+        return messages

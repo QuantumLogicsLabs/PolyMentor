@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""
+triage_pytest_failure.py
+------------------------
+Analyzes a pytest failure log with PolyMentor's Groq pipeline and writes a
+sticky PR comment markdown file (pytest_triage_comment.md).
+
+Always exits 0 so triage issues never mask the original red pytest job.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from src.inference.pipeline import PolyMentorPipeline
+
+OUT_PATH = Path("pytest_triage_comment.md")
+MAX_CHARS = 30000
+
+
+def write_comment(body: str) -> None:
+    OUT_PATH.write_text(body.strip() + "\n", encoding="utf-8")
+    print(f"Wrote triage comment to {OUT_PATH.absolute()}")
+
+
+async def main() -> None:
+    if len(sys.argv) < 2:
+        write_comment(
+            "## PolyMentor pytest triage\n\n"
+            "Triage unavailable: no pytest log path was provided."
+        )
+        return
+
+    log_path = Path(sys.argv[1])
+    if not log_path.exists():
+        write_comment(
+            "## PolyMentor pytest triage\n\n"
+            f"Triage unavailable: log file not found (`{log_path}`)."
+        )
+        return
+
+    log_content = log_path.read_text(encoding="utf-8", errors="replace")
+    if not log_content.strip():
+        write_comment(
+            "## PolyMentor pytest triage\n\n"
+            "Triage unavailable: pytest log was empty."
+        )
+        return
+
+    if len(log_content) > MAX_CHARS:
+        log_content = (
+            log_content[:MAX_CHARS] + "\n... [Log truncated due to size limit]"
+        )
+
+    if not os.getenv("GROQ_API_KEY"):
+        write_comment(
+            "## PolyMentor pytest triage\n\n"
+            "Triage unavailable: `GROQ_API_KEY` is not set in repository secrets."
+        )
+        return
+
+    print(f"Triaging pytest failure log ({len(log_content)} chars)...")
+
+    try:
+        pipeline = PolyMentorPipeline.from_groq()
+        question = (
+            "You are an expert CI failure triage engineer. Analyze this pytest "
+            "failure log from the PolyMentor repository. Identify the most likely "
+            "root cause, the files or tests involved, whether this looks like a "
+            "real regression vs a flaky/environment issue, and give a short list "
+            "of minimal fix steps. Be concrete and concise. Use markdown headings "
+            "and bullet lists."
+        )
+        result = await pipeline.analyze(
+            code=log_content,
+            language="python",
+            level="advanced",
+            question=question,
+        )
+    except Exception as exc:  # noqa: BLE001 — never fail the CI job from triage
+        write_comment(
+            "## PolyMentor pytest triage\n\n"
+            f"Triage unavailable: {type(exc).__name__}: {exc}"
+        )
+        return
+
+    if result.status != "ok":
+        write_comment(
+            "## PolyMentor pytest triage\n\n"
+            f"Triage unavailable: pipeline status `{result.status}`.\n\n"
+            f"{result.answer or ''}"
+        )
+        return
+
+    lines = [
+        "## PolyMentor pytest fail triage",
+        "",
+        result.answer or "_No triage summary returned._",
+    ]
+
+    if result.suspected_bugs:
+        lines.append("\n### Suspected issues")
+        for bug in result.suspected_bugs:
+            lines.append(f"- {bug}")
+
+    if result.next_steps:
+        lines.append("\n### Suggested fix steps")
+        for step in result.next_steps:
+            lines.append(f"- {step}")
+
+    if result.lesson:
+        lines.append(f"\n### Key takeaway\n{result.lesson}")
+
+    lines.append(
+        f"\n---\n*Triaged with {result.model} in {result.elapsed_ms:.0f}ms*"
+    )
+    write_comment("\n".join(lines))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
