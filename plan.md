@@ -39,7 +39,7 @@ flowchart LR
 | Analyzer in [`src/analysis/advanced_analyzer.py`](src/analysis/advanced_analyzer.py) | Live Hybrid | **Integrated automatically into `/chat` and pipeline loop** |
 | [`ChatRequest`](src/api/app.py) | Full Support | Fully extended with optional `code`, `language`, `history`, `repo_root` |
 | Tree-sitter under `vendor/` | Active in `src/` | Integrated into `RepoParser` for multi-language AST extraction |
-| GHA daily smoke + Mongo export | Live + Hybrid Smoke | No PR review / fail triage yet |
+| GHA daily smoke + Mongo export | Live + Hybrid PR Review | PR reviewer active with actionable severity thresholding & automated fail triage |
 | LoRA train/eval scripts | Local GPU path | No free serving → not the productivity lever |
 
 
