@@ -220,9 +220,102 @@ def write_comment(body: str, out_path: Optional[Path] = None) -> None:
     print(f"Wrote triage comment to {target.absolute()}")
 
 
+def generate_triage_comment_md(
+    report: PytestReport,
+    ai_summary: Optional[str] = None,
+    suspected_bugs: Optional[list[str]] = None,
+    next_steps: Optional[list[str]] = None,
+    lesson: Optional[str] = None,
+    model_name: str = "local-diagnostic",
+    elapsed_ms: float = 0.0,
+    error_msg: Optional[str] = None
+) -> str:
+    """
+    Synthesizes an enterprise-grade Markdown diagnosis report for sticky PR commenting,
+    incorporating visual status badges, failure scorecards, and actionable AI remediations.
+    """
+    # Determine severity & badge
+    total_issues = report.total_failures + report.total_errors
+    if report.total_errors > 0:
+        status_badge = "🟡 **Collection / Import Error** (Test Setup Failure)"
+    elif total_issues > 0:
+        status_badge = "🔴 **Test Suite Regression** (Code Assertion Failure)"
+    else:
+        status_badge = "🟢 **No Failures Detected** (Clean CI Run)"
+
+    lines = [
+        "## 🧪 PolyMentor Automated Pytest Triage",
+        "",
+        f"**CI Diagnostic Assessment:** {status_badge}",
+        "",
+        "### 📊 Test Suite Failure Scorecard",
+        "| Metric | Count | Diagnostic Assessment |",
+        "| :--- | :---: | :--- |",
+        f"| **Runtime Test Failures** | **{report.total_failures}** | {'🚨 Immediate logic regression check required' if report.total_failures > 0 else '✅ No failed assertions'} |",
+        f"| **Collection / Setup Errors** | **{report.total_errors}** | {'⚠️ Module import or syntax issue detected' if report.total_errors > 0 else '✅ Healthy test collection'} |",
+        f"| **Analyzed Log Size** | **{report.raw_log_length}** chars | {'📉 Truncated via traceback budget' if report.raw_log_length > MAX_CHARS else '🔍 Full log inspected'} |",
+        ""
+    ]
+
+    if error_msg:
+        lines.extend([
+            "> [!WARNING]",
+            f"> AI Triage Engine unavailable: {error_msg}. Displaying structural diagnostic summary below.",
+            ""
+        ])
+
+    if report.failed_tests:
+        lines.extend([
+            "### 🎯 Failed Test Breakdown",
+            "| Test Name | File Path | Exception Type | Details |",
+            "| :--- | :--- | :---: | :--- |"
+        ])
+        for t in report.failed_tests[:15]:  # limit table rows for readability
+            short_msg = t.message.replace("\n", " ").strip()
+            if len(short_msg) > 60:
+                short_msg = short_msg[:57] + "..."
+            line_str = f":L{t.line_number}" if t.line_number else ""
+            lines.append(f"| `{t.name}` | `{t.file_path}{line_str}` | `{t.exception_type}` | {short_msg} |")
+        if len(report.failed_tests) > 15:
+            lines.append(f"| ... and **{len(report.failed_tests) - 15}** more | | | |")
+        lines.append("")
+
+    if ai_summary and ai_summary.strip():
+        lines.extend([
+            "### 🧠 Senior AI Mentor Analysis",
+            "",
+            ai_summary.strip(),
+            ""
+        ])
+
+    if suspected_bugs:
+        lines.append("### 🐞 Root Cause Hypotheses")
+        for bug in suspected_bugs:
+            lines.append(f"- {bug}")
+        lines.append("")
+
+    if next_steps:
+        lines.append("### 🛠️ Minimal Actionable Remediation Steps")
+        for step in next_steps:
+            lines.append(f"- {step}")
+        lines.append("")
+
+    if lesson:
+        lines.extend([
+            "### 💡 Pedagogical Takeaway",
+            lesson.strip(),
+            ""
+        ])
+
+    lines.extend([
+        "---",
+        f"*✨ PolyMentor Autonomous CI Engine | Model: `{model_name}` | Triage Time: `{elapsed_ms:.0f}ms`*"
+    ])
+    return "\n".join(lines)
 
 
 async def main() -> None:
+
     if len(sys.argv) < 2:
         write_comment(
             "## PolyMentor pytest triage\n\n"
