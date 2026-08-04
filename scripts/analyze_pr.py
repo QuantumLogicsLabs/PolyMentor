@@ -230,8 +230,15 @@ def generate_pr_comment_md(response, hunk_results: list[HunkAnalysisResult], dro
     """
     lines = ["# 🤖 PolyMentor PR Review & Quality Gate\n"]
     
-    # Calculate aggregate scores and total errors
+    # Calculate aggregate scores and total actionable bugs
     total_errors = sum(hr.static_summary.get("total_errors", 0) for hr in hunk_results)
+    total_bugs = sum(
+        (hr.static_summary.get("critical_count", 0)
+         + hr.static_summary.get("high_count", 0)
+         + hr.static_summary.get("medium_count", 0))
+        if "critical_count" in hr.static_summary else hr.static_summary.get("total_errors", 0)
+        for hr in hunk_results
+    )
     supported_hunks = [hr for hr in hunk_results if hr.static_summary.get("supported", False)]
     avg_score = int(sum(hr.quality_score for hr in supported_hunks) / len(supported_hunks)) if supported_hunks else 100
     
