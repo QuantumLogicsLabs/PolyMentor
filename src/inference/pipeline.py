@@ -258,7 +258,6 @@ class PolyMentorPipeline:
             truncated_code=getattr(packed, "truncated_code", False),
             dropped_turns=getattr(packed, "dropped_turns", 0),
             static_analysis_summary={
-
                 "total_errors": analysis_result.get("total_errors", 0),
                 "quality_score": analysis_result.get("quality_score"),
                 "errors": [
@@ -271,7 +270,7 @@ class PolyMentorPipeline:
                     }
                     for e in analysis_result.get("errors", [])[:5]
                 ]
-            } if analysis_result and analysis_result.get("supported", False) else None,
+            } if analysis_result and analysis_result.get("supported", True) else None,
         )
 
 
