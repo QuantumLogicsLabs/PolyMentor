@@ -23,8 +23,9 @@ from typing import Iterable, Literal, Optional
 import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
-from src.inference.context_builder import ContextBuilder
+from src.inference.context_builder import ContextBuilder, LEVEL_GUIDANCE, RepoContext
 from src.inference.repo_parser import RepoParser
+
 
 load_dotenv()
 
@@ -162,10 +163,27 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
+        analysis_result: Optional[dict] = None,
+        repo: Optional[RepoContext] = None,
+        repo_root: Optional[str | Path] = None,
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
         level_value = _normalize_level(level)
+
+        if repo_root and not repo:
+            repo = self.repo_parser.extract_repo_context(code=code, language=language, root_dir=str(repo_root))
+
+        packed = self.context_builder.build_prompt(
+            message=message,
+            code=code,
+            language=language,
+            level=level_value,
+            history=history,
+            analysis_result=analysis_result,
+            repo=repo,
+            require_json=True,
+        )
 
         if not self._client:
             return MentorResponse(
@@ -185,10 +203,9 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        messages = self._build_messages(message, code, language, level_value, history)
         completion = await self._client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=packed.messages,
             temperature=self.temperature,
             max_completion_tokens=self.max_tokens,
             response_format={"type": "json_object"},
@@ -242,6 +259,7 @@ class PolyMentorPipeline:
         question: str = "Review this code, identify likely bugs, teach the concept, and suggest a fix.",
         analysis_result: Optional[dict] = None,
         repo: Optional[RepoContext] = None,
+        repo_root: Optional[str | Path] = None,
     ) -> MentorResponse:
         return await self.chat(
             message=question,
@@ -250,6 +268,7 @@ class PolyMentorPipeline:
             level=level,
             analysis_result=analysis_result,
             repo=repo,
+            repo_root=repo_root,
         )
 
     def _build_messages(
@@ -260,6 +279,7 @@ class PolyMentorPipeline:
         level: LearnerLevel,
         history: Optional[Iterable[ChatMessage | dict[str, str]]],
     ) -> list[dict[str, str]]:
+
         system = (
             "You are PolyMentor, a coding tutor chatbot. Your job is to teach "
             "programming, help users write code, identify likely bugs, explain "
