@@ -22,6 +22,31 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 logging.basicConfig(level=logging.WARNING, format="[PolyMentor IDE Bridge] %(levelname)s: %(message)s")
 logger = logging.getLogger("ide_bridge")
 
+try:
+    from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer, ErrorSeverity, CodeError
+except ImportError as e:
+    logger.error(f"Failed to import internal PolyMentor core analysis suite: {e}")
+    sys.exit(1)
+
+
+def map_severity_to_lsp(severity: Any) -> int:
+    """
+    Map internal ErrorSeverity strings or enum values to standard LSP integer codes.
+    1: DiagnosticSeverity.Error (Critical issues, syntax failures, vulnerabilities)
+    2: DiagnosticSeverity.Warning (High severity bugs, memory leaks)
+    3: DiagnosticSeverity.Information (Medium severity code smells, complexity)
+    4: DiagnosticSeverity.Hint (Low severity styling, naming best practices)
+    """
+    val = str(severity).lower().split(".")[-1]
+    if val in ("critical", "error"):
+        return 1
+    elif val in ("high", "warning", "warn"):
+        return 2
+    elif val in ("medium", "info", "information"):
+        return 3
+    else:
+        return 4
+
 
 def read_source_input(file_path: Optional[str] = None, stdin_mode: bool = False) -> str:
     """Read source code buffer from standard input or specified file path."""
