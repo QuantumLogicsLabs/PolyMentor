@@ -569,7 +569,13 @@ class JavaAnalyzer:
         """Comprehensive Java code analysis"""
         errors = []
         
-        errors.extend(JavaAnalyzer._check_syntax(code))
+        # Execute deterministic Tree-sitter AST grammar validation first
+        ts_errors = _check_treesitter_syntax(code, "java")
+        if ts_errors:
+            errors.extend(ts_errors)
+        else:
+            errors.extend(JavaAnalyzer._check_syntax(code))
+            
         errors.extend(JavaAnalyzer._check_patterns(code))
         errors.extend(JavaAnalyzer._check_best_practices(code))
         
