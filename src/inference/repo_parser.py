@@ -127,8 +127,32 @@ class RepoParser:
         return errors
 
     def _walk_ast_errors(self, node: Any, errors: list[dict[str, Any]], code_lines: list[str]) -> None:
-        """Helper to walk AST nodes for syntax failures."""
-        pass
+        """Recursively inspects Tree-sitter AST nodes to extract syntax error locations and snippets."""
+        is_error = getattr(node, "type", "") == "ERROR" or getattr(node, "is_missing", False)
+        if is_error:
+            start_point = getattr(node, "start_point", (0, 0))
+            line_num = start_point[0] + 1  # 1-indexed line numbers
+            col_num = start_point[1]
+            snippet = ""
+            if 0 <= start_point[0] < len(code_lines):
+                snippet = code_lines[start_point[0]].strip()
+
+            msg = (
+                f"Missing required language construct near line {line_num}"
+                if getattr(node, "is_missing", False)
+                else f"Syntax error detected near line {line_num}, column {col_num}"
+            )
+            errors.append({
+                "line": line_num,
+                "column": col_num,
+                "message": msg,
+                "snippet": snippet,
+            })
+            # Avoid recursing into error nodes to prevent duplicate error noise
+            return
+
+        for child in getattr(node, "children", []):
+            self._walk_ast_errors(child, errors, code_lines)
 
     def extract_symbols(self, code: str, language: str) -> dict[str, list[str]]:
         """
