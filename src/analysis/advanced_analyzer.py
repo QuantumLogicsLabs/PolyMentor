@@ -352,8 +352,14 @@ class JavaScriptAnalyzer:
         """Comprehensive JavaScript code analysis"""
         errors = []
         
-        # Check for common JS syntax patterns
-        errors.extend(JavaScriptAnalyzer._check_syntax(code))
+        # Execute deterministic Tree-sitter AST grammar validation first
+        ts_errors = _check_treesitter_syntax(code, "javascript")
+        if ts_errors:
+            errors.extend(ts_errors)
+        else:
+            # Fall back to heuristic syntax checking if Tree-sitter unavailable or clean
+            errors.extend(JavaScriptAnalyzer._check_syntax(code))
+            
         errors.extend(JavaScriptAnalyzer._check_patterns(code))
         errors.extend(JavaScriptAnalyzer._check_best_practices(code))
         
