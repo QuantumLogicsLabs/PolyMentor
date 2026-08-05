@@ -122,13 +122,19 @@ class PythonAnalyzer:
             try:
                 tree = ast.parse("def _dummy_snippet_wrapper():\n" + textwrap.indent(dedented_code, "    "))
             except SyntaxError:
-                errors.append(CodeError(
-                    category=ErrorCategory.SYNTAX,
-                    severity=ErrorSeverity.CRITICAL,
-                    message=f"Syntax Error: {e.msg}",
-                    line_number=e.lineno or 1,
-                    suggestion=f"Check line {e.lineno or 1} for syntax issues"
-                ))
+                ts_errors = _check_treesitter_syntax(code, "python")
+                if ts_errors:
+                    errors.extend(ts_errors)
+                else:
+                    errors.append(CodeError(
+                        category=ErrorCategory.SYNTAX,
+                        severity=ErrorSeverity.CRITICAL,
+                        message=f"Syntax Error: {e.msg}",
+                        line_number=e.lineno or 1,
+                        column=e.offset,
+                        suggestion=f"Check line {e.lineno or 1} for syntax issues",
+                        code_snippet=lines[e.lineno - 1].strip() if e.lineno and 1 <= e.lineno <= len(lines) else None
+                    ))
         
         # AST-based analysis
         if tree:
