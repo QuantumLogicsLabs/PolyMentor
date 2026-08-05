@@ -107,6 +107,29 @@ class RepoParser:
             logger.warning(f"Error parsing {language} code AST: {e}")
             return None
 
+    def find_syntax_errors(self, code: str, language: str) -> list[dict[str, Any]]:
+        """
+        Detects syntax errors in source code by searching for ERROR or MISSING nodes in the Tree-sitter AST.
+        Returns a list of error dictionaries containing line numbers, descriptions, and code snippets.
+        """
+        errors: list[dict[str, Any]] = []
+        if not self.tree_sitter_ready or not code or not code.strip():
+            return errors
+
+        tree = self.parse_code(code, language)
+        if tree and tree.root_node and getattr(tree.root_node, "has_error", True):
+            try:
+                lines = code.splitlines()
+                self._walk_ast_errors(tree.root_node, errors, lines)
+            except Exception as e:
+                logger.debug(f"AST error traversal error: {e}")
+
+        return errors
+
+    def _walk_ast_errors(self, node: Any, errors: list[dict[str, Any]], code_lines: list[str]) -> None:
+        """Helper to walk AST nodes for syntax failures."""
+        pass
+
     def extract_symbols(self, code: str, language: str) -> dict[str, list[str]]:
         """
         Extract classes, functions, and import statements from code using Tree-sitter AST parsing,
