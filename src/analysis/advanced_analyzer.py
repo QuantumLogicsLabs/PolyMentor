@@ -18,8 +18,10 @@ Real-time analysis with detailed categorization.
 
 import ast
 import re
+import textwrap
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
+
 from enum import Enum
 
 
@@ -66,29 +68,37 @@ class PythonAnalyzer:
         """Comprehensive Python code analysis"""
         errors = []
         
-        # Syntax validation
+        # Syntax validation and dedent handling for code snippets
+        dedented_code = textwrap.dedent(code)
+        lines = dedented_code.split("\n")
+        tree = None
         try:
-            tree = ast.parse(code)
-            lines = code.split("\n")
+            tree = ast.parse(dedented_code)
         except SyntaxError as e:
-            return [CodeError(
-                category=ErrorCategory.SYNTAX,
-                severity=ErrorSeverity.CRITICAL,
-                message=f"Syntax Error: {e.msg}",
-                line_number=e.lineno,
-                suggestion=f"Check line {e.lineno} for syntax issues"
-            )]
+            # If parsing fails on snippet boundaries (e.g. return outside function), try wrapping in dummy function
+            try:
+                tree = ast.parse("def _dummy_snippet_wrapper():\n" + textwrap.indent(dedented_code, "    "))
+            except SyntaxError:
+                errors.append(CodeError(
+                    category=ErrorCategory.SYNTAX,
+                    severity=ErrorSeverity.CRITICAL,
+                    message=f"Syntax Error: {e.msg}",
+                    line_number=e.lineno or 1,
+                    suggestion=f"Check line {e.lineno or 1} for syntax issues"
+                ))
         
         # AST-based analysis
-        errors.extend(PythonAnalyzer._analyze_ast(tree, lines))
+        if tree:
+            errors.extend(PythonAnalyzer._analyze_ast(tree, lines))
         
         # Pattern-based analysis
-        errors.extend(PythonAnalyzer._analyze_patterns(code, lines))
+        errors.extend(PythonAnalyzer._analyze_patterns(dedented_code, lines))
         
         # Style analysis
-        errors.extend(PythonAnalyzer._analyze_style(code, lines))
+        errors.extend(PythonAnalyzer._analyze_style(dedented_code, lines))
         
         return errors
+
     
     @staticmethod
     def _analyze_ast(tree: ast.AST, lines: List[str]) -> List[CodeError]:
@@ -186,8 +196,21 @@ class PythonAnalyzer:
     
     @staticmethod
     def _analyze_patterns(code: str, lines: List[str]) -> List[CodeError]:
-        """Pattern-based analysis for Python"""
+        """
+        Pattern-based regex analysis for Python code.
+        Detects security anti-patterns (e.g. dynamic eval/exec execution), wildcard imports,
+        bare except handlers, global scopes, and mutable default arguments.
+        """
         errors = []
+        
+        # Unsafe eval/exec usage
+        if re.search(r"\b(?:eval|exec)\s*\(", code):
+            errors.append(CodeError(
+                category=ErrorCategory.SECURITY,
+                severity=ErrorSeverity.CRITICAL,
+                message="Unsafe eval/exec function usage detected",
+                suggestion="Avoid evaluating untrusted code strings dynamically"
+            ))
         
         # Wildcard imports
         if re.search(r"^\s*from\s+\S+\s+import\s+\*", code, re.MULTILINE):
@@ -595,16 +618,25 @@ class AdvancedCodeAnalyzer:
             return {
                 "language": language,
                 "supported": False,
+                "total_errors": 0,
+                "quality_score": 100,
                 "errors": [],
                 "message": f"Language '{language}' not yet supported"
             }
         
         errors = analyzer_class.analyze(code)
         
+        crit = sum(1 for e in errors if e.severity == ErrorSeverity.CRITICAL)
+        high = sum(1 for e in errors if e.severity == ErrorSeverity.HIGH)
+        med = sum(1 for e in errors if e.severity == ErrorSeverity.MEDIUM)
+        low = sum(1 for e in errors if e.severity == ErrorSeverity.LOW)
+        score = max(0, 100 - (crit * 25 + high * 15 + med * 10 + low * 5))
+        
         return {
             "language": language,
             "supported": True,
             "total_errors": len(errors),
+            "quality_score": score,
             "errors": [
                 {
                     "category": error.category.value,
@@ -616,11 +648,12 @@ class AdvancedCodeAnalyzer:
                 }
                 for error in errors
             ],
-            "critical_count": sum(1 for e in errors if e.severity == ErrorSeverity.CRITICAL),
-            "high_count": sum(1 for e in errors if e.severity == ErrorSeverity.HIGH),
-            "medium_count": sum(1 for e in errors if e.severity == ErrorSeverity.MEDIUM),
-            "low_count": sum(1 for e in errors if e.severity == ErrorSeverity.LOW),
+            "critical_count": crit,
+            "high_count": high,
+            "medium_count": med,
+            "low_count": low,
         }
+
     
     @staticmethod
     def get_real_time_suggestions(code: str, language: str) -> List[str]:

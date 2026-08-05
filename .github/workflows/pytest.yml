@@ -1,7 +1,8 @@
 name: PolyMentor Pytest
 
 on:
-  pull_request:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
   workflow_dispatch:
@@ -14,10 +15,11 @@ jobs:
       pull-requests: write
       issues: write
 
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -44,14 +46,25 @@ jobs:
           if-no-files-found: ignore
 
       - name: Groq fail triage
-        if: failure() && github.event_name == 'pull_request'
+        if: failure() && (github.event_name == 'pull_request_target' || github.event_name == 'pull_request')
         continue-on-error: true
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: python scripts/triage_pytest_failure.py pytest-output.txt
+        run: python scripts/triage_pytest_failure.py pytest-output.txt --output pytest_triage_comment.md --json-summary pytest_triage.json --repo-root .
+
+      - name: Upload triage reports artifact
+        if: failure() && (github.event_name == 'pull_request_target' || github.event_name == 'pull_request')
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: polymentor-pytest-triage-report
+          path: |
+            pytest_triage_comment.md
+            pytest_triage.json
+          retention-days: 14
 
       - name: Post triage comment
-        if: failure() && github.event_name == 'pull_request'
+        if: failure() && (github.event_name == 'pull_request_target' || github.event_name == 'pull_request')
         continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@v2
         with:

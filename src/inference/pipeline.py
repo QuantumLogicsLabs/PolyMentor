@@ -18,13 +18,27 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Iterable, Literal, Optional
+from typing import Any, Iterable, Literal, Optional
 
 import json
 from dotenv import load_dotenv
 from groq import AsyncGroq
+try:
+
+    from src.inference.context_builder import ContextBuilder, LEVEL_GUIDANCE, RepoContext
+except ImportError:
+    from src.inference.context_builder import ContextBuilder, RepoContext
+    LEVEL_GUIDANCE = {
+        "beginner": "Provide foundational step-by-step explanations, avoiding dense jargon and using practical real-world analogies.",
+        "intermediate": "Focus on algorithmic efficiency, language idioms, clean patterns, and standard edge-case avoidance.",
+        "advanced": "Focus on systems architecture, low-level execution semantics, concurrency performance, and security hardening.",
+    }
+from src.inference.repo_parser import RepoParser
+
+
 
 load_dotenv()
+
 
 
 
@@ -114,11 +128,11 @@ def _normalize_level(level: str | None) -> LearnerLevel:
 
 class PolyMentorPipeline:
     """
-    Groq-backed coding mentor.
+    Groq-backed coding mentor with deterministic hybrid grounding and AST repository context.
 
-    Use chat() for normal chatbot turns and analyze() when you have code plus a
-    debugging/teaching question. analyze() is kept as a compatibility alias for
-    older integrations, but it now returns a MentorResponse instead of scores.
+    Use chat() for conversational mentoring and debugger walkthroughs; it automatically invokes
+    static analysis grounding when code snippets are provided and synthesizes workspace symbols
+    when repo_root or file_path coordinates are supplied.
     """
 
     def __init__(
@@ -159,10 +173,41 @@ class PolyMentorPipeline:
         language: str = DEFAULT_LANGUAGE,
         level: str = DEFAULT_LEVEL,
         history: Optional[Iterable[ChatMessage | dict[str, str]]] = None,
+        analysis_result: Optional[dict] = None,
+        repo: Optional[RepoContext] = None,
+        repo_root: Optional[str | Path] = None,
+        file_path: Optional[str] = None,
+        **_kwargs: Any,
     ) -> MentorResponse:
         started = time.perf_counter()
         language = _normalize_language(language)
         level_value = _normalize_level(level)
+
+        if (repo_root or file_path) and not repo:
+            repo = self.repo_parser.extract_repo_context(
+                code=code,
+                language=language,
+                root_dir=str(repo_root) if repo_root else None,
+                file_path=file_path,
+            )
+
+        if code.strip() and analysis_result is None:
+            try:
+                from src.analysis.advanced_analyzer import AdvancedCodeAnalyzer
+                analysis_result = AdvancedCodeAnalyzer.analyze(code, language)
+            except Exception:
+                analysis_result = None
+
+        packed = self.context_builder.build_prompt(
+            message=message,
+            code=code,
+            language=language,
+            level=level_value,
+            history=history,
+            analysis_result=analysis_result,
+            repo=repo,
+            require_json=True,
+        )
 
         if not self._client:
             return MentorResponse(
@@ -182,10 +227,9 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        messages = self._build_messages(message, code, language, level_value, history)
         completion = await self._client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=packed.messages,
             temperature=self.temperature,
             max_completion_tokens=self.max_tokens,
             response_format={"type": "json_object"},
@@ -209,10 +253,10 @@ class PolyMentorPipeline:
             lesson=parsed.get("lesson"),
             next_steps=parsed.get("next_steps", []),
             elapsed_ms=(time.perf_counter() - started) * 1000,
-            grounded=packed.grounding_enabled,
-            token_utilization_pct=telemetry["utilization_pct"],
-            truncated_code=packed.truncated_code,
-            dropped_turns=packed.dropped_turns,
+            grounded=getattr(packed, "grounding_enabled", False),
+            token_utilization_pct=telemetry.get("utilization_pct", 0.0) if isinstance(telemetry, dict) else 0.0,
+            truncated_code=getattr(packed, "truncated_code", False),
+            dropped_turns=getattr(packed, "dropped_turns", 0),
             static_analysis_summary={
                 "total_errors": analysis_result.get("total_errors", 0),
                 "quality_score": analysis_result.get("quality_score"),
@@ -226,7 +270,7 @@ class PolyMentorPipeline:
                     }
                     for e in analysis_result.get("errors", [])[:5]
                 ]
-            } if analysis_result and analysis_result.get("supported", False) else None,
+            } if analysis_result and analysis_result.get("supported", True) else None,
         )
 
 
@@ -239,6 +283,7 @@ class PolyMentorPipeline:
         question: str = "Review this code, identify likely bugs, teach the concept, and suggest a fix.",
         analysis_result: Optional[dict] = None,
         repo: Optional[RepoContext] = None,
+        repo_root: Optional[str | Path] = None,
     ) -> MentorResponse:
         return await self.chat(
             message=question,
@@ -247,6 +292,7 @@ class PolyMentorPipeline:
             level=level,
             analysis_result=analysis_result,
             repo=repo,
+            repo_root=repo_root,
         )
 
     def _build_messages(
@@ -257,6 +303,7 @@ class PolyMentorPipeline:
         level: LearnerLevel,
         history: Optional[Iterable[ChatMessage | dict[str, str]]],
     ) -> list[dict[str, str]]:
+
         system = (
             "You are PolyMentor, a coding tutor chatbot. Your job is to teach "
             "programming, help users write code, identify likely bugs, explain "
