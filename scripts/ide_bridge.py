@@ -106,6 +106,62 @@ def read_source_input(file_path: Optional[str] = None, stdin_mode: bool = False)
     sys.exit(1)
 
 
+def infer_language_from_name(name_or_lang: str) -> str:
+    """Infer programming language identifier from file path or explicit language string."""
+    clean = name_or_lang.lower().strip()
+    if clean in ("python", "javascript", "cpp", "c++", "java", "c"):
+        return clean if clean != "c++" else "cpp"
+        
+    ext = os.path.splitext(clean)[1]
+    if ext in (".py", ".pyw"):
+        return "python"
+    elif ext in (".js", ".jsx", ".ts", ".tsx"):
+        return "javascript"
+    elif ext in (".cpp", ".c", ".cc", ".cxx", ".h", ".hpp"):
+        return "cpp"
+    elif ext == ".java":
+        return "java"
+    return "python"  # Default fallback
+
+
+def analyze_buffer(
+    source_code: str,
+    target_identifier: str,
+    format_mode: str = "lsp",
+    with_ai_mentor: bool = False
+) -> Dict[str, Any]:
+    """Execute grounded static AST analysis on a code buffer and format output for IDE clients."""
+    lang = infer_language_from_name(target_identifier)
+    raw_results = AdvancedCodeAnalyzer.analyze(source_code, lang)
+    
+    diagnostics = []
+    for err in raw_results.get("errors", []):
+        if format_mode == "lsp":
+            diagnostics.append(convert_error_to_lsp_diagnostic(err))
+        else:
+            diagnostics.append(err)
+            
+    score = raw_results.get("score", 100.0)
+    
+    response = {
+        "uri": target_identifier if ("/" in target_identifier or "\\" in target_identifier or "." in target_identifier) else f"buffer://{lang}",
+        "language": lang,
+        "quality_score": score,
+        "total_issues": len(diagnostics),
+        "diagnostics": diagnostics
+    }
+    
+    if with_ai_mentor and len(diagnostics) > 0:
+        try:
+            from src.inference.groq_pipeline import PolyMentorPipeline
+            pipe = PolyMentorPipeline.from_groq()
+            response["ai_mentor_summary"] = f"Found {len(diagnostics)} structural issue(s). Consider addressing critical syntax and bug patterns first."
+        except Exception:
+            response["ai_mentor_summary"] = "AI review offline (using pure deterministic static analysis grounding)."
+            
+    return response
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments for IDE bridge operations."""
     parser = argparse.ArgumentParser(
