@@ -78,6 +78,31 @@ def get_repo_parser():
     return _repo_parser_instance
 
 
+def _check_treesitter_syntax(code: str, language: str) -> List[CodeError]:
+    """Executes Tree-sitter AST syntax validation and returns structured CodeError list."""
+    errors: List[CodeError] = []
+    parser = get_repo_parser()
+    if not getattr(parser, "tree_sitter_ready", False):
+        return errors
+
+    try:
+        ts_errors = parser.find_syntax_errors(code, language)
+        for err in ts_errors:
+            errors.append(CodeError(
+                category=ErrorCategory.SYNTAX,
+                severity=ErrorSeverity.CRITICAL,
+                message=err.get("message", "Tree-sitter AST syntax error"),
+                line_number=err.get("line"),
+                column=err.get("column"),
+                suggestion="Verify syntax structure according to language grammar rules",
+                code_snippet=err.get("snippet"),
+            ))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Tree-sitter syntax validation check failed: {e}")
+    return errors
+
+
 class PythonAnalyzer:
     """Python-specific code analyzer"""
     
