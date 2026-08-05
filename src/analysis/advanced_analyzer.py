@@ -530,6 +530,15 @@ class CPPAnalyzer:
         """C++ syntax checks"""
         errors = []
         
+        # Unmatched braces
+        if code.count("{") != code.count("}"):
+            errors.append(CodeError(
+                category=ErrorCategory.SYNTAX,
+                severity=ErrorSeverity.CRITICAL,
+                message="Unmatched braces detected in C++ code",
+                suggestion="Verify all opening braces have matching closing braces"
+            ))
+        
         # Missing semicolons
         for i, line in enumerate(lines, 1):
             stripped = line.strip()
