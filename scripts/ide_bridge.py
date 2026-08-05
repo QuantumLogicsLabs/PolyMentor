@@ -48,6 +48,39 @@ def map_severity_to_lsp(severity: Any) -> int:
         return 4
 
 
+def convert_error_to_lsp_diagnostic(error_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Convert a PolyMentor analysis error dictionary into an LSP Diagnostic object.
+    Note: Language Server Protocol specifies zero-indexed line and character offsets.
+    """
+    line_num = max(1, error_dict.get("line", 1) or 1)
+    col_num = max(0, error_dict.get("column", 0) or 0)
+    lsp_line = line_num - 1
+    
+    # Construct diagnostic message combining problem and refactor suggestion
+    msg = str(error_dict.get("message", "Unknown issue"))
+    suggestion = error_dict.get("suggestion")
+    if suggestion and str(suggestion).strip() != "None":
+        msg += f" | 💡 Refactor Advice: {suggestion}"
+        
+    category = str(error_dict.get("category", "code_smell"))
+    
+    return {
+        "range": {
+            "start": {"line": lsp_line, "character": col_num},
+            "end": {"line": lsp_line, "character": col_num + 80}
+        },
+        "severity": map_severity_to_lsp(error_dict.get("severity", "MEDIUM")),
+        "code": category,
+        "source": "polymentor-analyzer",
+        "message": msg,
+        "data": {
+            "code_snippet": error_dict.get("code_snippet"),
+            "polymentor_rule": category
+        }
+    }
+
+
 def read_source_input(file_path: Optional[str] = None, stdin_mode: bool = False) -> str:
     """Read source code buffer from standard input or specified file path."""
     if stdin_mode:
