@@ -192,7 +192,54 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main execution flow for PolyMentor IDE & VS Code diagnostic bridge."""
     args = parse_arguments()
-    # Foundational entry point; subsequent steps integrate diagnostic formatting and AST pipeline invocation
-    print(json.dumps({"status": "initialized", "mode": args.format}))
+    
+    if args.dir:
+        workspace = Path(args.dir)
+        if not workspace.exists() or not workspace.is_dir():
+            logger.error(f"Workspace directory does not exist: {args.dir}")
+            sys.exit(1)
+            
+        file_results = []
+        total_score = 0.0
+        valid_files = 0
+        
+        for root, _, files in os.walk(workspace):
+            for f in files:
+                ext = os.path.splitext(f)[1].lower()
+                if ext in (".py", ".js", ".ts", ".jsx", ".tsx", ".cpp", ".c", ".cc", ".h", ".hpp", ".java"):
+                    file_path = os.path.join(root, f)
+                    try:
+                        with open(file_path, "r", encoding="utf-8", errors="replace") as fp:
+                            code = fp.read()
+                        res = analyze_buffer(code, file_path, format_mode=args.format, with_ai_mentor=args.with_ai_mentor)
+                        file_results.append(res)
+                        total_score += res.get("quality_score", 100.0)
+                        valid_files += 1
+                    except Exception as e:
+                        logger.warning(f"Skipping {file_path} due to read exception: {e}")
+                        
+        avg_score = round(total_score / valid_files, 2) if valid_files > 0 else 100.0
+        output_payload = {
+            "mode": "workspace_batch",
+            "workspace_root": str(workspace),
+            "files_analyzed": valid_files,
+            "average_quality_score": avg_score,
+            "diagnostics_by_file": file_results
+        }
+        print(json.dumps(output_payload, indent=2 if args.format == "lsp" else None))
+        if avg_score < args.min_score:
+            sys.exit(2)
+    else:
+        source = read_source_input(file_path=args.file, stdin_mode=bool(args.stdin_lang))
+        identifier = args.file if args.file else str(args.stdin_lang)
+        output_payload = analyze_buffer(source, identifier, format_mode=args.format, with_ai_mentor=args.with_ai_mentor)
+        print(json.dumps(output_payload, indent=2 if args.format == "lsp" else None))
+        if output_payload.get("quality_score", 100.0) < args.min_score:
+            sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
