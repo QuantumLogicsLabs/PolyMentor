@@ -60,6 +60,24 @@ class CodeError:
     code_snippet: Optional[str] = None
 
 
+_repo_parser_instance = None
+def get_repo_parser():
+    """Lazy initialization and singleton access to Tree-sitter RepoParser."""
+    global _repo_parser_instance
+    if _repo_parser_instance is None:
+        try:
+            from src.inference.repo_parser import RepoParser
+            _repo_parser_instance = RepoParser()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not initialize RepoParser: {e}")
+            class _DummyParser:
+                def find_syntax_errors(self, code: str, language: str) -> List[Dict]:
+                    return []
+            _repo_parser_instance = _DummyParser()
+    return _repo_parser_instance
+
+
 class PythonAnalyzer:
     """Python-specific code analyzer"""
     
