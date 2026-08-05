@@ -479,9 +479,15 @@ class CPPAnalyzer:
         errors = []
         lines = code.split("\n")
         
-        # Memory management issues
+        # Execute deterministic Tree-sitter AST grammar validation first
+        ts_errors = _check_treesitter_syntax(code, "cpp")
+        if ts_errors:
+            errors.extend(ts_errors)
+        else:
+            errors.extend(CPPAnalyzer._check_syntax(code, lines))
+        
+        # Memory management issues and style check
         errors.extend(CPPAnalyzer._check_memory(code, lines))
-        errors.extend(CPPAnalyzer._check_syntax(code, lines))
         errors.extend(CPPAnalyzer._check_style(code, lines))
         
         return errors
