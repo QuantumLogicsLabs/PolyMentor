@@ -92,7 +92,8 @@ Do **not** spend cycles on GPU hosting / hybrid routing until you have free Cola
 3. [x] **`pr-mentor.yml` & PR review bot** — Automated PR diff review implemented in `scripts/analyze_pr.py` and `.github/workflows/pr-mentor.yml` with multi-file diff hunk parsing, deterministic static analysis bug detection, AST structural grounding, quality scorecards, risk assessment badges, prioritized token budget pruning, and CI artifact archiving.
 4. [x] **`pytest.yml` & `triage_pytest_failure.py` CI Triage Bot** — Automated test failure analysis implemented with structured regex diagnostic parsing, critical traceback tail preservation, AST source code grounding via `RepoParser`, diagnosis scorecards, machine-readable JSON outputs, and `pull_request_target` permissions for secure PR commenting and artifact archiving.
 
-5. **Tree-sitter polish** — only after hybrid chat works; replace weakest regex paths.
+5. [x] **Tree-sitter polish** — Implemented deterministic Tree-sitter AST grammar syntax validation across `PythonAnalyzer`, `JavaScriptAnalyzer`, `CPPAnalyzer`, and `JavaAnalyzer` via `RepoParser.find_syntax_errors`, replacing weak regex parsing paths and verifying fallbacks in `tests/test_treesitter_analyzer.py`.
+6. [x] **IDE & VS Code Integration Suite** — Implemented standard LSP diagnostic adapter (`scripts/ide_bridge.py`), zero-disk live editor stdin streaming, workspace quality score gating, pre-configured VS Code tasks/settings (`ide_presets/vscode/`), and comprehensive developer reference documentation (`docs/IDE_VSCODE_INTEGRATION.md`).
 
 Out of scope for this budget plan: OpenAI, paid RunPod serving, FAISS/CodeBERT revival, rewriting the vision doc’s Phase-4 “replace Groq” fantasy as the near-term goal.
 

@@ -60,6 +60,49 @@ class CodeError:
     code_snippet: Optional[str] = None
 
 
+_repo_parser_instance = None
+def get_repo_parser():
+    """Lazy initialization and singleton access to Tree-sitter RepoParser."""
+    global _repo_parser_instance
+    if _repo_parser_instance is None:
+        try:
+            from src.inference.repo_parser import RepoParser
+            _repo_parser_instance = RepoParser()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not initialize RepoParser: {e}")
+            class _DummyParser:
+                def find_syntax_errors(self, code: str, language: str) -> List[Dict]:
+                    return []
+            _repo_parser_instance = _DummyParser()
+    return _repo_parser_instance
+
+
+def _check_treesitter_syntax(code: str, language: str) -> List[CodeError]:
+    """Executes Tree-sitter AST syntax validation and returns structured CodeError list."""
+    errors: List[CodeError] = []
+    parser = get_repo_parser()
+    if not getattr(parser, "tree_sitter_ready", False):
+        return errors
+
+    try:
+        ts_errors = parser.find_syntax_errors(code, language)
+        for err in ts_errors:
+            errors.append(CodeError(
+                category=ErrorCategory.SYNTAX,
+                severity=ErrorSeverity.CRITICAL,
+                message=err.get("message", "Tree-sitter AST syntax error"),
+                line_number=err.get("line"),
+                column=err.get("column"),
+                suggestion="Verify syntax structure according to language grammar rules",
+                code_snippet=err.get("snippet"),
+            ))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Tree-sitter syntax validation check failed: {e}")
+    return errors
+
+
 class PythonAnalyzer:
     """Python-specific code analyzer"""
     
@@ -79,13 +122,19 @@ class PythonAnalyzer:
             try:
                 tree = ast.parse("def _dummy_snippet_wrapper():\n" + textwrap.indent(dedented_code, "    "))
             except SyntaxError:
-                errors.append(CodeError(
-                    category=ErrorCategory.SYNTAX,
-                    severity=ErrorSeverity.CRITICAL,
-                    message=f"Syntax Error: {e.msg}",
-                    line_number=e.lineno or 1,
-                    suggestion=f"Check line {e.lineno or 1} for syntax issues"
-                ))
+                ts_errors = _check_treesitter_syntax(code, "python")
+                if ts_errors:
+                    errors.extend(ts_errors)
+                else:
+                    errors.append(CodeError(
+                        category=ErrorCategory.SYNTAX,
+                        severity=ErrorSeverity.CRITICAL,
+                        message=f"Syntax Error: {e.msg}",
+                        line_number=e.lineno or 1,
+                        column=e.offset,
+                        suggestion=f"Check line {e.lineno or 1} for syntax issues",
+                        code_snippet=lines[e.lineno - 1].strip() if e.lineno and 1 <= e.lineno <= len(lines) else None
+                    ))
         
         # AST-based analysis
         if tree:
@@ -309,8 +358,14 @@ class JavaScriptAnalyzer:
         """Comprehensive JavaScript code analysis"""
         errors = []
         
-        # Check for common JS syntax patterns
-        errors.extend(JavaScriptAnalyzer._check_syntax(code))
+        # Execute deterministic Tree-sitter AST grammar validation first
+        ts_errors = _check_treesitter_syntax(code, "javascript")
+        if ts_errors:
+            errors.extend(ts_errors)
+        else:
+            # Fall back to heuristic syntax checking if Tree-sitter unavailable or clean
+            errors.extend(JavaScriptAnalyzer._check_syntax(code))
+            
         errors.extend(JavaScriptAnalyzer._check_patterns(code))
         errors.extend(JavaScriptAnalyzer._check_best_practices(code))
         
@@ -430,9 +485,15 @@ class CPPAnalyzer:
         errors = []
         lines = code.split("\n")
         
-        # Memory management issues
+        # Execute deterministic Tree-sitter AST grammar validation first
+        ts_errors = _check_treesitter_syntax(code, "cpp")
+        if ts_errors:
+            errors.extend(ts_errors)
+        else:
+            errors.extend(CPPAnalyzer._check_syntax(code, lines))
+        
+        # Memory management issues and style check
         errors.extend(CPPAnalyzer._check_memory(code, lines))
-        errors.extend(CPPAnalyzer._check_syntax(code, lines))
         errors.extend(CPPAnalyzer._check_style(code, lines))
         
         return errors
@@ -468,6 +529,15 @@ class CPPAnalyzer:
     def _check_syntax(code: str, lines: List[str]) -> List[CodeError]:
         """C++ syntax checks"""
         errors = []
+        
+        # Unmatched braces
+        if code.count("{") != code.count("}"):
+            errors.append(CodeError(
+                category=ErrorCategory.SYNTAX,
+                severity=ErrorSeverity.CRITICAL,
+                message="Unmatched braces detected in C++ code",
+                suggestion="Verify all opening braces have matching closing braces"
+            ))
         
         # Missing semicolons
         for i, line in enumerate(lines, 1):
@@ -514,7 +584,13 @@ class JavaAnalyzer:
         """Comprehensive Java code analysis"""
         errors = []
         
-        errors.extend(JavaAnalyzer._check_syntax(code))
+        # Execute deterministic Tree-sitter AST grammar validation first
+        ts_errors = _check_treesitter_syntax(code, "java")
+        if ts_errors:
+            errors.extend(ts_errors)
+        else:
+            errors.extend(JavaAnalyzer._check_syntax(code))
+            
         errors.extend(JavaAnalyzer._check_patterns(code))
         errors.extend(JavaAnalyzer._check_best_practices(code))
         

@@ -107,6 +107,53 @@ class RepoParser:
             logger.warning(f"Error parsing {language} code AST: {e}")
             return None
 
+    def find_syntax_errors(self, code: str, language: str) -> list[dict[str, Any]]:
+        """
+        Detects syntax errors in source code by searching for ERROR or MISSING nodes in the Tree-sitter AST.
+        Returns a list of error dictionaries containing line numbers, descriptions, and code snippets.
+        """
+        errors: list[dict[str, Any]] = []
+        if not self.tree_sitter_ready or not code or not code.strip():
+            return errors
+
+        tree = self.parse_code(code, language)
+        if tree and tree.root_node and getattr(tree.root_node, "has_error", True):
+            try:
+                lines = code.splitlines()
+                self._walk_ast_errors(tree.root_node, errors, lines)
+            except Exception as e:
+                logger.debug(f"AST error traversal error: {e}")
+
+        return errors
+
+    def _walk_ast_errors(self, node: Any, errors: list[dict[str, Any]], code_lines: list[str]) -> None:
+        """Recursively inspects Tree-sitter AST nodes to extract syntax error locations and snippets."""
+        is_error = getattr(node, "type", "") == "ERROR" or getattr(node, "is_missing", False)
+        if is_error:
+            start_point = getattr(node, "start_point", (0, 0))
+            line_num = start_point[0] + 1  # 1-indexed line numbers
+            col_num = start_point[1]
+            snippet = ""
+            if 0 <= start_point[0] < len(code_lines):
+                snippet = code_lines[start_point[0]].strip()
+
+            msg = (
+                f"Missing required language construct near line {line_num}"
+                if getattr(node, "is_missing", False)
+                else f"Syntax error detected near line {line_num}, column {col_num}"
+            )
+            errors.append({
+                "line": line_num,
+                "column": col_num,
+                "message": msg,
+                "snippet": snippet,
+            })
+            # Avoid recursing into error nodes to prevent duplicate error noise
+            return
+
+        for child in getattr(node, "children", []):
+            self._walk_ast_errors(child, errors, code_lines)
+
     def extract_symbols(self, code: str, language: str) -> dict[str, list[str]]:
         """
         Extract classes, functions, and import statements from code using Tree-sitter AST parsing,
