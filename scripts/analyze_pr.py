@@ -368,9 +368,8 @@ async def run_pr_review(
     )
 
     if result.status != "ok":
-        err_msg = f"PolyMentor inference error: {result.status}\n{result.answer}"
-        out_path.write_text(err_msg, encoding="utf-8")
-        return 1, {"status": "error", "error": err_msg}
+        print(f"Warning: PolyMentor inference failed or skipped ({result.status}). Generating static analysis report only...")
+        result.answer = f"⚠️ **AI Review Unavailable ({result.status})**\n\n*Displaying deterministic static analysis results only.*"
 
     # Generate enterprise markdown report
     md_comment = generate_pr_comment_md(result, hunk_results, dropped_files)

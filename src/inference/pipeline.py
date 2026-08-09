@@ -227,19 +227,25 @@ class PolyMentorPipeline:
                 elapsed_ms=(time.perf_counter() - started) * 1000,
             )
 
-        completion = await self._client.chat.completions.create(
-            model=self.model,
-            messages=packed.messages,
-            temperature=self.temperature,
-            max_completion_tokens=self.max_tokens,
-            response_format={"type": "json_object"},
-        )
-
-        content = completion.choices[0].message.content or "{}"
         try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            parsed = {"answer": content}
+            completion = await self._client.chat.completions.create(
+                model=self.model,
+                messages=packed.messages,
+                temperature=self.temperature,
+                max_completion_tokens=self.max_tokens,
+                response_format={"type": "json_object"},
+            )
+            content = completion.choices[0].message.content or "{}"
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                parsed = {"answer": content}
+        except Exception as e:
+            parsed = {
+                "answer": f"Groq API error (Rate Limit or Context Exceeded): {str(e)}",
+                "suspected_bugs": [],
+                "next_steps": ["Reduce PR size or wait for API rate limits to reset."]
+            }
 
         telemetry = self.context_builder.inspect_prompt_budget(packed)
         return MentorResponse(
