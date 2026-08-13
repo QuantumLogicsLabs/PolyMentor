@@ -1,14 +1,26 @@
+---
+name: Beat GPT On Budget
+overview: Stop competing with ChatGPT on raw model IQ. Use what you already have—Groq, free static analysis, MongoDB data, and GitHub Actions—to build a grounded coding system (analyze → Groq → act) that is more productive than plain GPT chat for both PolyCode learners and your own repo workflow.
+todos:
+  - id: hybrid-chat
+    content: Wire analyzer + optional code/language/history into /chat via ContextBuilder + pipeline prompt pack
+    status: pending
+  - id: local-cli
+    content: "Add one-shot CLI/script: analyze file → Groq review for local use without frontend"
+    status: pending
+  - id: pr-mentor-gha
+    content: "Add pr-mentor.yml: diff + analyzer + Groq → PR comment using GROQ_API_KEY secret"
+    status: pending
+  - id: ci-pytest-triage
+    content: Add pytest CI workflow and fail-triage Groq comment step
+    status: pending
+  - id: metrics-fixtures
+    content: Add small fixture set to measure grounded chat vs blind Groq (prove productivity)
+    status: pending
+isProject: false
+---
+
 # Beat GPT with Groq + free tools + Actions
-
-Stop competing with ChatGPT on raw model IQ. Use what you already have—Groq, free static analysis, MongoDB data, and GitHub Actions—to build a grounded coding system (analyze → Groq → act) that is more productive than plain GPT chat for both PolyCode learners and your own repo workflow.
-
-## Todos
-
-- [ ] Wire analyzer + optional code/language/history into `/chat` via ContextBuilder + pipeline prompt pack
-- [ ] Add one-shot CLI/script: analyze file → Groq review for local use without frontend
-- [ ] Add `pr-mentor.yml`: diff + analyzer + Groq → PR comment using `GROQ_API_KEY` secret
-- [ ] Add pytest CI workflow and fail-triage Groq comment step
-- [ ] Add small fixture set to measure grounded chat vs blind Groq (prove productivity)
 
 ## Honest baseline
 
