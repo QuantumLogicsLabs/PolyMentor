@@ -124,6 +124,7 @@ pathspec==1.0.4
 peft==0.19.1
 pillow==12.2.0
 pinecone==8.1.0
+pinecone-client>=5.0.0
 pinecone-plugin-assistant==3.0.2
 pinecone-plugin-interface==0.0.7
 platformdirs==4.9.6
