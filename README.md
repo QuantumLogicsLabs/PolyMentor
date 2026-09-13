@@ -60,7 +60,7 @@ Copy `.env.example` to `.env` and set at least:
 
 ```bash
 GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 For training data export, also set `MONGODB_URI` (or `MONGODB_USER`, `MONGODB_PASSWORD`, `MONGODB_CLUSTER`).
@@ -264,7 +264,7 @@ Add repository secrets:
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `GROQ_API_KEY` | Yes (API/chat) | Groq authentication |
-| `GROQ_MODEL` | No | Default chat model (e.g. `llama-3.3-70b-versatile`) |
+| `GROQ_MODEL` | No | Default chat model (e.g. `openai/gpt-oss-120b`) |
 | `GROQ_FALLBACK_MODEL` | No | Fallback when hybrid/custom routing is enabled |
 | `MONGODB_URI` | For export / Actions | Full MongoDB connection string |
 | `MONGODB_DB` | No | Database name (default `polycode`) |
