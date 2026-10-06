@@ -9,7 +9,7 @@ languages. It does not depend on local model checkpoints or quality scoring.
 
 Environment:
     GROQ_API_KEY   Required for Groq responses.
-    GROQ_MODEL     Optional. Defaults to llama-3.3-70b-versatile.
+    GROQ_MODEL     Optional. Defaults to openai/gpt-oss-120b.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ SUPPORTED_LANGUAGES = {
 
 LearnerLevel = Literal["beginner", "intermediate", "advanced"]
 
-DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+DEFAULT_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 DEFAULT_LEVEL: LearnerLevel = "beginner"
 DEFAULT_LANGUAGE = "python"
 

@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.7",
     "pymongo>=4.16.0",
     "python-dotenv>=1.0.0",
+    "slowapi==0.1.9",
     "uvicorn[standard]>=0.30.0",
 ]
 
