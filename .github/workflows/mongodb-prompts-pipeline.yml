@@ -44,7 +44,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
 
+      - name: Check MongoDB Credentials
+        id: check_env
+        run: |
+          if [ -z "$MONGODB_URI" ] || [ "$MONGODB_URI" = "your_username" ]; then
+            echo "MONGODB_URI secret is not configured in repository secrets. Skipping export."
+            echo "run_export=false" >> $GITHUB_OUTPUT
+          else
+            echo "run_export=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Export and clean MongoDB prompt conversations
+        if: steps.check_env.outputs.run_export == 'true'
         run: |
           LIMIT="${{ github.event.inputs.limit || '0' }}"
           ONLY_LIKED="${{ github.event.inputs.only_liked || 'false' }}"
@@ -55,9 +66,11 @@ jobs:
           python scripts/export_mongodb_prompts.py "${ARGS[@]}"           #This is the command to export the MongoDB prompt conversations. It is a shell script.
 
       - name: Remove generated caches and report large folders
+        if: steps.check_env.outputs.run_export == 'true'
         run: python scripts/maintenance_cleanup.py --min-mb 50 #This is the command to remove the generated caches and report the large folders. It is a shell script.
 
       - name: Upload cleaned prompt dataset
+        if: steps.check_env.outputs.run_export == 'true'
         uses: actions/upload-artifact@v4 #This is the action to upload the cleaned prompt dataset.
         with:
           name: mongodb-prompts #This is the name of the artifact.

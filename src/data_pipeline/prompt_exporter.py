@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -40,15 +41,16 @@ def build_mongodb_uri() -> str:
     load_dotenv()
 
     direct_uri = os.getenv("MONGODB_URI")
-    if direct_uri:
+    if direct_uri and "your_username" not in direct_uri:
         return direct_uri
 
     user = os.getenv("MONGODB_USER")
     password = os.getenv("MONGODB_PASSWORD")
     cluster = os.getenv("MONGODB_CLUSTER")
-    if not all([user, password, cluster]):
+    if not all([user, password, cluster]) or user == "your_username" or password == "your_password" or cluster == "your_cluster":
         raise RuntimeError(
-            "Set MONGODB_URI or set MONGODB_USER, MONGODB_PASSWORD, and MONGODB_CLUSTER."
+            "MongoDB credentials are missing or set to default placeholders in .env file. "
+            "Please set MONGODB_URI or (MONGODB_USER, MONGODB_PASSWORD, MONGODB_CLUSTER) in your .env file."
         )
 
     return (
@@ -149,14 +151,19 @@ def main() -> None:
     parser.add_argument("--only-liked", action="store_true")
     args = parser.parse_args()
 
-    stats = export_prompts(
-        output_path=args.output,
-        database=args.database,
-        collection=args.collection,
-        limit=args.limit,
-        only_liked=args.only_liked,
-    )
-    print(json.dumps(stats.__dict__, indent=2))
+    try:
+        stats = export_prompts(
+            output_path=args.output,
+            database=args.database,
+            collection=args.collection,
+            limit=args.limit,
+            only_liked=args.only_liked,
+        )
+        print(json.dumps(stats.__dict__, indent=2))
+    except Exception as e:
+        logger.error(f"MongoDB Export Error: {e}")
+        print(f"Error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
