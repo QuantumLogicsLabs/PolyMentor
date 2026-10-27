@@ -55,7 +55,7 @@ JUDGE_SYSTEM_PROMPT = (
     'form {"winner": "A"|"B"|"tie", "reason": "<one short sentence>"}.'
 )
 
-JUDGE_MODEL_DEFAULT = "llama-3.1-8b-instant"
+JUDGE_MODEL_DEFAULT = "openai/gpt-oss-20b"
 
 
 @dataclass
